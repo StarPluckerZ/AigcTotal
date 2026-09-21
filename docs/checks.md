@@ -7,11 +7,11 @@
 |---|---|---|---|
 | `carrier_detect` | 探测 | 载体能否唯一确定 | pass=唯一命中；error+`unknown_format`/`ambiguous_format` → inconclusive |
 | `container_structure` | 探测 | 容器是否完整可遍历 | pass；error+`structure_truncated`/`structure_malformed`/`resource_limit_exceeded` → inconclusive |
-| `png_text_aigc` | 发现 | PNG tEXt（关键字 AIGC）通道是否发现标识站点 | pass=发现 ≥1 站点；skip=无 |
+| `png_text_aigc` | 发现 | PNG tEXt（关键字 AIGC）通道是否发现标识站点 | pass=发现 ≥1 站点；skip=无；负载支持裸 JSON 与 `{"AIGC":{…}}` 包裹两种形态（后者见 TC260-PG-20259A 附录 B） |
 | `png_xmp_aigc` | 发现 | PNG iTXt（关键字 XML:com.adobe.xmp）XMP 通道是否发现标识 | pass/skip；TC260 包装层（`<TC260:AIGC>` 内嵌附录 E JSON，ns=http://www.tc260.org.cn/ns/AIGC/1.0/）已支持；压缩 iTXt（flag≠0）→ error → inconclusive |
 | `jpeg_app1_xmp` | 发现 | JPEG APP1 XMP 是否发现标识 | pass/skip |
 | `mp4_xmp_aigc` | 发现 | MP4 XMP-aigc 通道（uuid box，Adobe XMP UUID）是否发现标识 | pass/skip |
-| `mp4_udta_aigc` | 发现 | MP4 QuickTime udta 路径（aigc/AIGC box，atom 名待指南校准）是否发现标识 | pass/skip |
+| `mp4_udta_aigc` | 发现 | MP4 udta 元数据通道是否发现标识 | pass/skip；**主通道** = moov.udta.meta.keys(key=AIGC) + ilst（TC260-PG-20257A 规定，ffmpeg use_metadata_tags 形态）；字面 aigc box 为兼容探测 |
 | `wav_riff_aigc` | 发现 | WAV RIFF AIGC chunk 是否发现标识 | pass/skip；空壳 → 信号 `metadata_shell_empty` → inconclusive |
 | `mp3_id3_txxx` | 发现 | MP3 ID3 TXXX（描述=AIGC）帧是否发现标识 | pass/skip（v2.3/v2.4，UTF-8/Latin-1 描述） |
 | `text_prompt_affix` | 发现 | 文本首尾标识区是否发现提示语模式（基线模式表，待 TC260 文本指南校准） | pass/skip；二进制误落到文本兜底 → carrier_detect error `unknown_format` |

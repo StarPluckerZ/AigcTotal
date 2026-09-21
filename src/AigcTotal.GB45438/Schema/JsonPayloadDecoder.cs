@@ -66,6 +66,17 @@ namespace AigcTotal.GB45438.Schema
                     _i++;
                     return result;
                 }
+                ParseEntries(result);
+                return result;
+            }
+
+            /// <summary>
+            /// 解析对象条目。键为 "AIGC" 且值为对象时按包裹形态解包
+            /// （TC260-PG-20259A 附录 B：tEXt/EXIF UserComment 负载为 {"AIGC":{七字段}}）；
+            /// 其余键值必须为标量。解包可递归（多重包裹逐层展开）。
+            /// </summary>
+            private void ParseEntries(Dictionary<string, string> result)
+            {
                 while (true)
                 {
                     SkipWs();
@@ -73,14 +84,30 @@ namespace AigcTotal.GB45438.Schema
                     SkipWs();
                     Expect(':');
                     SkipWs();
-                    string value = ParseScalarValue();
-                    result[key] = value;
+                    if (key == "AIGC" && Peek() == '{')
+                    {
+                        // 值对象：消费 '{' 后递归；递归的 ParseEntries 会消费值对象自身的 '}'，
+                        // 随后由外层循环处理 ',' 或本层 '}'
+                        _i++;
+                        SkipWs();
+                        if (Peek() != '}')
+                        {
+                            ParseEntries(result);
+                        }
+                        else
+                        {
+                            _i++;
+                        }
+                    }
+                    else
+                    {
+                        result[key] = ParseScalarValue();
+                    }
                     SkipWs();
                     char c = Next();
                     if (c == '}') break;
                     if (c != ',') throw new FormatException("expected ',' or '}'");
                 }
-                return result;
             }
 
             private string ParseScalarValue()

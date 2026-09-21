@@ -36,8 +36,9 @@ M1 进行中（2026-09）：
 - [x] `aigc-report` CLI：canonical 报告信封（schema v1）官方参考实现；JCS canonical JSON、ULID、CI 友好退出码
 - [x] golden 语料库（`samples/corpus/`，确定性自造、无版权平台文件）+ golden 报告回归测试（schema 冻结执行器）
 - [x] 健壮性套件进 CI：种子变异、截断、长度/深度炸弹——任何输入不允许异常逃出 `Verify`
+- [x] **TC260 四份载体指南原文校准完成**（2026-09-22）：MP4 keys/ilst 通道（PG-20257A 规定形态）、PNG tEXt 包裹形态（PG-20259A 附录B）、XMP 官方命名空间（`http://www.tc260.org.cn/ns/AIGC/1.0/`）均已按指南实现
 - [ ] SharpFuzz 覆盖率引导模糊测试（`tools/AigcTotal.Fuzz`，Linux）——测试架已就绪
-- [ ] XMP 命名空间精确匹配、MP4 `udta` atom 名、文本提示语模式表——待 TC260 指南原文校准
+- [ ] 显式标识文案与 Label 枚举值域——待 GB 45438-2025 正文（openstd）比对；指南新揭示的载体（OGG/FLAC/M4A/FLV/MKV/AVI、docx/PDF 等文档类）列入后续路线
 
 ## 使用
 

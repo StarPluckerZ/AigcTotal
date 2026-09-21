@@ -357,6 +357,22 @@ namespace AigcTotal.GB45438.Tests
         }
 
         [Fact]
+        public void Png_TextWrappedAigcEnvelope_Compliant_PerTc260Guide()
+        {
+            // TC260-PG-20259A 附录 B：tEXt 负载为 {"AIGC":{七字段}} 包裹形态
+            string wrapped = "{\"AIGC\":" + ValidPayload + "}";
+            var png = PngBuilder.Build(
+                PngBuilder.Text("AIGC", wrapped),
+                PngBuilder.Data("IEND", System.Array.Empty<byte>()));
+
+            var result = Verify(png);
+
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            Assert.Equal("TestStudio", result.Sites[0].Fields!["ContentProducer"]);
+            Assert.Equal("1", result.Sites[0].Fields!["Label"]);
+        }
+
+        [Fact]
         public void Determinism_SameInputSameResult()
         {
             var png = PngBuilder.Build(

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace AigcTotal.TestSupport
@@ -171,6 +172,55 @@ namespace AigcTotal.TestSupport
         }
 
         public static byte[] UdtaAigc(string json) => Container("udta", Box("aigc", Encoding.UTF8.GetBytes(json)));
+
+        /// <summary>
+        /// TC260-PG-20257A 规定形态：udta/meta（full box）/keys（mdta 命名空间 key=AIGC）
+        /// + ilst（序号条目 → data box → 裸 JSON 负载）。ffmpeg -movflags use_metadata_tags 实测一致。
+        /// </summary>
+        public static byte[] UdtaMetaAigc(string json)
+        {
+            byte[] keyName = Encoding.ASCII.GetBytes("AIGC");
+            uint keySize = (uint)(4 + 4 + keyName.Length + 1); // key_size字段自身 + 'mdta' + name + NUL
+            byte[] keyEntry = new[]
+            {
+                U32BE(keySize),
+                Encoding.ASCII.GetBytes("mdta"),
+                keyName,
+                new byte[] { 0 },
+            }.SelectMany(x => x).ToArray();
+            byte[] keys = Box("keys", new[]
+            {
+                new byte[] { 0, 0, 0, 0 },   // version/flags
+                new byte[] { 0, 0, 0, 1 },   // entry count = 1
+                keyEntry,
+            }.SelectMany(x => x).ToArray());
+
+            byte[] dataBox = Box("data", new[]
+            {
+                new byte[] { 0, 0, 0, 1 },   // 数据类型 1 = UTF-8
+                new byte[] { 0, 0, 0, 0 },   // locale
+                Encoding.UTF8.GetBytes(json),
+            }.SelectMany(x => x).ToArray());
+            byte[] ilst = Box("ilst", BoxRaw(new byte[] { 0, 0, 0, 1 }, dataBox)); // 条目序号 1
+
+            byte[] metaPayload = new byte[4].Concat(keys).Concat(ilst).ToArray(); // full box version/flags
+            return Container("udta", Box("meta", metaPayload));
+        }
+
+        /// <summary>类型字段为原始字节的 box（如 ilst 的序号条目）。</summary>
+        public static byte[] BoxRaw(byte[] typeBytes, byte[] data)
+        {
+            var ms = new MemoryStream();
+            WriteU32BE(ms, (uint)(8 + data.Length));
+            ms.Write(typeBytes, 0, 4);
+            ms.Write(data, 0, data.Length);
+            return ms.ToArray();
+        }
+
+        private static byte[] U32BE(uint value) => new[]
+        {
+            (byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value,
+        };
 
         public static byte[] UuidXmp(string xmp)
         {

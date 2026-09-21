@@ -140,6 +140,17 @@ namespace AigcTotal.Fixtures
                 Mp4Builder.Container("moov", Mp4Builder.UdtaAigc(validJson)),
                 Mp4Builder.Mdat(32)));
 
+            // TC260-PG-20257A 规定形态（ffmpeg use_metadata_tags）：udta/meta/keys + ilst
+            yield return ("mp4-udta-meta-aigc.mp4", Mp4Builder.Build(
+                Mp4Builder.Ftyp("isom"),
+                Mp4Builder.Container("moov", Mp4Builder.UdtaMetaAigc(validJson)),
+                Mp4Builder.Mdat(32)));
+
+            // TC260-PG-20259A 附录 B 形态：tEXt 负载为 {"AIGC":{七字段}} 包裹
+            yield return ("png-text-wrapped.png", PngBuilder.Build(
+                PngBuilder.Text("AIGC", "{\"AIGC\":" + validJson + "}"),
+                PngBuilder.Data("IEND", Array.Empty<byte>())));
+
             yield return ("mp4-uuid-xmp.mp4", Mp4Builder.Build(
                 Mp4Builder.Ftyp("isom"),
                 Mp4Builder.UuidXmp(validXmp)));

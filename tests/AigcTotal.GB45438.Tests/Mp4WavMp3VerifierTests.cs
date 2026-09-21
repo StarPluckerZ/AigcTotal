@@ -36,6 +36,25 @@ namespace AigcTotal.GB45438.Tests
         }
 
         [Fact]
+        public void Mp4_UdtaMetaKeysIlst_Compliant_PerTc260Guide()
+        {
+            // TC260-PG-20257A 规定形态：moov.udta.meta.keys + ilst（ffmpeg use_metadata_tags）
+            byte[] mp4 = Mp4Builder.Build(
+                Mp4Builder.Ftyp("isom"),
+                Mp4Builder.Container("moov", Mp4Builder.UdtaMetaAigc(ValidJson)),
+                Mp4Builder.Mdat(16));
+
+            var result = AigcLabelVerifier.Verify(mp4);
+
+            Assert.Equal(Carriers.CarrierKind.Mp4, result.Carrier);
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            var site = Assert.Single(result.Sites);
+            Assert.Equal("VideoStudio", site.Fields!["ContentProducer"]);
+            Assert.Equal(Carriers.PayloadEncoding.Json, site.Encoding);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.Mp4UdtaAigc && c.Outcome == CheckOutcome.Pass);
+        }
+
+        [Fact]
         public void Mp4_UuidXmpBox_FoundAndCompliant()
         {
             byte[] mp4 = Mp4Builder.Build(
