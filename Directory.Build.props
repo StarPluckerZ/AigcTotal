@@ -1,0 +1,18 @@
+<Project>
+
+  <!-- 仓库级公共设置：所有项目继承 -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <Deterministic>true</Deterministic>
+    <NeutralLanguage>en</NeutralLanguage>
+    <Company>AigcTotal contributors</Company>
+    <Product>AigcTotal</Product>
+    <Copyright>Copyright © 2026 AigcTotal contributors</Copyright>
+  </PropertyGroup>
+
+</Project>

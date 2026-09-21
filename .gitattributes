@@ -1,0 +1,13 @@
+# 行尾统一：文本一律 LF，保证跨平台确定性（golden 报告逐字节比对、语料哈希进 manifest）
+* text=auto eol=lf
+
+# 语料与 golden 必须字节原样：任何转换都会改变 SHA-256
+*.png  -text
+*.jpg  -text
+*.mp4  -text
+*.wav  -text
+*.mp3  -text
+samples/corpus/manifest.txt            -text
+samples/corpus/article-ai.txt          -text
+samples/corpus/article-plain.txt       -text
+tests/AigcTotal.Report.Tests/Golden/*  -text

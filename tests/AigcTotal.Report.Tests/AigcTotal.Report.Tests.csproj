@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AigcTotal.GB45438\AigcTotal.GB45438.csproj" />
+    <ProjectReference Include="..\..\src\AigcTotal.Report\AigcTotal.Report.csproj" />
+    <ProjectReference Include="..\..\src\AigcTotal.Report.Cli\AigcTotal.Report.Cli.csproj" />
+    <ProjectReference Include="..\AigcTotal.TestSupport\AigcTotal.TestSupport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\samples\corpus\png-label-valid.png" Link="corpus\png-label-valid.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Golden\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

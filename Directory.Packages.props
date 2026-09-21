@@ -1,0 +1,18 @@
+<Project>
+
+  <!-- 中央包管理（CPM）：全仓包版本唯一来源 -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- netstandard2.0 目标上 Span<T> 的运行时支撑；net10.0 目标零依赖 -->
+    <PackageVersion Include="System.Memory" Version="4.6.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="SharpFuzz" Version="2.1.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.1" />
+  </ItemGroup>
+
+</Project>

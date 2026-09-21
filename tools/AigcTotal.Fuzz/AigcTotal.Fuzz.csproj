@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- SharpFuzz 的原生插桩仅支持 Linux/macOS，目标框架与库解耦 -->
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>AigcTotal.Fuzz</RootNamespace>
+    <AssemblyName>AigcTotal.Fuzz</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SharpFuzz" />
+    <ProjectReference Include="..\..\src\AigcTotal.GB45438\AigcTotal.GB45438.csproj" />
+  </ItemGroup>
+
+</Project>

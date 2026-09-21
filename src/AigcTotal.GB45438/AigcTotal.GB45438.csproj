@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- GB 45438-2025 确定性验证核心：多目标，net10.0 零第三方依赖 -->
+    <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
+    <RootNamespace>AigcTotal.GB45438</RootNamespace>
+    <AssemblyName>AigcTotal.GB45438</AssemblyName>
+    <Version>0.1.0</Version>
+    <Description>Deterministic verifier for AIGC implicit content labels per GB 45438-2025 (Cybersecurity technology - Labeling method for AI-generated synthetic content).</Description>
+    <!-- XML 文档在首个 NuGet 发布前开启 -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- ThrowIfNull/ThrowIfNegative 等替代 API 在 netstandard2.0 不存在，保留显式抛出 -->
+    <NoWarn>$(NoWarn);CA1510;CA1512</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Memory" />
+  </ItemGroup>
+
+</Project>
