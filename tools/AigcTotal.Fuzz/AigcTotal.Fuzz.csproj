@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <!-- SharpFuzz 的原生插桩仅支持 Linux/macOS，目标框架与库解耦 -->
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- libfuzzer-dotnet 驱动 + 插桩仅支持 Linux/macOS；与主库同用 .NET 10 -->
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>AigcTotal.Fuzz</RootNamespace>
     <AssemblyName>AigcTotal.Fuzz</AssemblyName>
     <IsPackable>false</IsPackable>
