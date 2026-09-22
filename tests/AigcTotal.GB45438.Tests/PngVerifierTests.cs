@@ -101,8 +101,9 @@ namespace AigcTotal.GB45438.Tests
         }
 
         [Fact]
-        public void ChineseProducer_DecodesUtf8_AndPasses()
+        public void ChineseValue_ViolatesCharset_Noncompliant_PerAnnexeJ()
         {
+            // 附录 E j)：字段值限 GB18030 单字节可打印字符——中文名称不合规（应使用编码）
             var payload = ValidPayload.Replace("TestStudio", "测试工作室");
             var png = PngBuilder.Build(
                 PngBuilder.Text("AIGC", payload),
@@ -110,13 +111,32 @@ namespace AigcTotal.GB45438.Tests
 
             var result = Verify(png);
 
-            Assert.Equal(VerdictKind.Compliant, result.Verdict);
-            Assert.Equal("测试工作室", result.Sites[0].Fields!["ContentProducer"]);
+            Assert.Equal(VerdictKind.Noncompliant, result.Verdict);
+            Assert.Contains(result.Checks, c =>
+                c.Check == CheckIds.AnnexeCharset && c.Outcome == CheckOutcome.Fail
+                && c.Code == CheckCodes.CharsetInvalid && c.Detail == "ContentProducer");
         }
 
         [Fact]
-        public void DuplicateIdenticalSites_CompliantWithWarning()
+        public void Charset_SpaceAndBackslash_Violate_EscapedQuote_Passes()
         {
+            // 空格违规；\" 转义（解码后为引号）合规
+            var withSpace = ValidPayload.Replace("TestStudio", "Test Studio");
+            var result1 = Verify(PngBuilder.Build(
+                PngBuilder.Text("AIGC", withSpace), PngBuilder.Data("IEND", System.Array.Empty<byte>())));
+            Assert.Equal(VerdictKind.Noncompliant, result1.Verdict);
+
+            // 源文本 \"Test\" → 解码后含引号 → 按附录 E j) 允许
+            var payloadQuote = "{\"Label\":\"1\",\"ContentProducer\":\"\\\"Test\\\"Studio\",\"ProduceID\":\"P-0001\"}";
+            var result2 = Verify(PngBuilder.Build(
+                PngBuilder.Text("AIGC", payloadQuote), PngBuilder.Data("IEND", System.Array.Empty<byte>())));
+            Assert.Equal(VerdictKind.Compliant, result2.Verdict);
+        }
+
+        [Fact]
+        public void DuplicateIdenticalSites_Noncompliant_Per6_1c_OnlyOneLabel()
+        {
+            // GB 45438-2025 第 6.1 c)：内容文件中应仅保留一份文件元数据隐式标识
             var png = PngBuilder.Build(
                 PngBuilder.Text("AIGC", ValidPayload),
                 PngBuilder.Text("AIGC", ValidPayload),
@@ -124,9 +144,9 @@ namespace AigcTotal.GB45438.Tests
 
             var result = Verify(png);
 
-            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            Assert.Equal(VerdictKind.Noncompliant, result.Verdict);
             Assert.Equal(2, result.Sites.Count);
-            Assert.Contains(result.Checks, c => c.Check == CheckIds.DuplicateLabel && c.Outcome == CheckOutcome.Warn);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.DuplicateLabel && c.Outcome == CheckOutcome.Fail);
             Assert.Contains(result.Checks, c => c.Check == CheckIds.FieldsAgree && c.Outcome == CheckOutcome.Pass);
         }
 

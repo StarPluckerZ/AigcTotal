@@ -27,8 +27,9 @@ namespace AigcTotal.GB45438.Schema
                 : new CheckResult(CheckIds.AnnexeFields, CheckOutcome.Fail, site: siteIndex,
                     code: CheckCodes.FieldMissing, detail: missing);
 
-            // 字符集基线：禁止控制字符
-            string? badCharset = FirstControlChar(fields);
+            // 字符集（GB 45438-2025 附录 E j)：值由 GB18030 码位 0x21、0x23~0x5B、0x5D~0x7E 的
+            // 字符以及 \" 构成——解码后的值中允许 0x21..0x7E（含从 \" 转义来的引号），其余一律违规
+            string? badCharset = FirstCharsetViolation(fields);
             yield return badCharset == null
                 ? new CheckResult(CheckIds.AnnexeCharset, CheckOutcome.Pass, site: siteIndex)
                 : new CheckResult(CheckIds.AnnexeCharset, CheckOutcome.Fail, site: siteIndex,
@@ -62,16 +63,21 @@ namespace AigcTotal.GB45438.Schema
             return null;
         }
 
-        private static string? FirstControlChar(IReadOnlyDictionary<string, string> fields)
+        /// <summary>
+        /// 附录 E j)：字段值限单字节可打印字符（0x21~0x7E，除 \" 转义外无引号/反斜杠/空格）。
+        /// 解码后的 '"' 必然源自源文本 \" 转义（JSON 语法保证），允许；
+        /// 解码后的 '\' 只能来自 \\ 等违规转义，拒绝；空格、控制字符、DEL、多字节（中文等）拒绝。
+        /// </summary>
+        private static string? FirstCharsetViolation(IReadOnlyDictionary<string, string> fields)
         {
             foreach (var pair in fields)
             {
-                foreach (char c in pair.Value)
+                string value = pair.Value;
+                foreach (char c in value)
                 {
-                    if (c < 0x20 || c == 0x7F)
-                    {
-                        return pair.Key;
-                    }
+                    if (c == '"') continue;   // 源文本 \" 转义的产物，允许
+                    if (c == '\\') return pair.Key;
+                    if (c < 0x21 || c > 0x7E) return pair.Key;
                 }
             }
             return null;

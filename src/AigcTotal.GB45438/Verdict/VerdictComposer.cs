@@ -84,9 +84,11 @@ namespace AigcTotal.GB45438.Verdict
                 : new CheckResult(CheckIds.FieldsAgree, CheckOutcome.Fail,
                     detail: $"{decoded.Count} label sites disagree on field values");
 
+            // GB 45438-2025 第 6.1 c)：内容文件中应仅保留一份文件元数据隐式标识——
+            // 一致重复也是违规（fail），不再是从前的 warn
             yield return allEqual
-                ? new CheckResult(CheckIds.DuplicateLabel, CheckOutcome.Warn,
-                    detail: $"{decoded.Count} identical label sites")
+                ? new CheckResult(CheckIds.DuplicateLabel, CheckOutcome.Fail,
+                    detail: $"{decoded.Count} identical label sites; GB 45438-2025 6.1 c) requires exactly one")
                 : new CheckResult(CheckIds.DuplicateLabel, CheckOutcome.Skip);
         }
 

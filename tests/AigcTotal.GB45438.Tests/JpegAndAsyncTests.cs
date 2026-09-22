@@ -32,14 +32,14 @@ namespace AigcTotal.GB45438.Tests
         {
             string xmp =
                 "<?xml version=\"1.0\"?><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">" +
-                "<rdf:Description><Label>2</Label><ContentProducer>元数据工作室</ContentProducer>" +
+                "<rdf:Description><Label>2</Label><ContentProducer>MetaStudio</ContentProducer>" +
                 "<ProduceID>J-42</ProduceID></rdf:Description></rdf:RDF>";
             byte[] jpeg = JpegBuilder.WithXmp(xmp);
 
             var result = AigcLabelVerifier.Verify(jpeg);
 
             Assert.Equal(VerdictKind.Compliant, result.Verdict);
-            Assert.Equal("元数据工作室", result.Sites[0].Fields!["ContentProducer"]);
+            Assert.Equal("MetaStudio", result.Sites[0].Fields!["ContentProducer"]);
             Assert.Equal("2", result.Sites[0].Fields!["Label"]);
         }
 

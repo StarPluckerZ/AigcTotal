@@ -32,6 +32,43 @@ namespace AigcTotal.GB45438.Tests
         }
 
         [Fact]
+        public void Text_CompositionalVariants_Matched_Per5_1()
+        {
+            // 5.1 b)：要素组合判定，不限于固定文案——"合成"在前、"AI"小写、变体措辞都应命中
+            foreach (string body in new[]
+                     {
+                         "以上内容由人工智能技术合成完成。",
+                         "ai合成内容仅供参考",
+                         "本作品为AI创作生成物。",
+                     })
+            {
+                var result = AigcLabelVerifier.Verify(Encoding.UTF8.GetBytes(body));
+                Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            }
+        }
+
+        [Fact]
+        public void Text_OnlyAiElementWithoutGen_NotMatched()
+        {
+            // 仅含人工智能要素、无生成合成要素：不构成 5.1 b) 的文字形式显式标识
+            byte[] text = Encoding.UTF8.GetBytes("AI 助手为您服务，请问有什么可以帮您？");
+
+            var result = AigcLabelVerifier.Verify(text);
+
+            Assert.Equal(VerdictKind.NotFound, result.Verdict);
+        }
+
+        [Fact]
+        public void Text_GenElementOutsideWindow_NotMatched()
+        {
+            // 两要素都在，但生成要素离文本末尾超过 64 字符窗口：后缀窗口不命中
+            string body = "这里提到了AI这个词。" + new string('文', 40) + "结尾。";
+            var result = AigcLabelVerifier.Verify(Encoding.UTF8.GetBytes(body));
+
+            Assert.Equal(VerdictKind.NotFound, result.Verdict);
+        }
+
+        [Fact]
         public void Text_WithoutPrompt_NotFound()
         {
             byte[] text = Encoding.UTF8.GetBytes("一段普通的文字内容。");

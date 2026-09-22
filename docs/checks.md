@@ -16,11 +16,11 @@
 | `mp3_id3_txxx` | 发现 | MP3 ID3 TXXX（描述=AIGC）帧是否发现标识 | pass/skip（v2.3/v2.4，UTF-8/Latin-1 描述） |
 | `text_prompt_affix` | 发现 | 文本首尾标识区是否发现提示语模式（基线模式表，待 TC260 文本指南校准） | pass/skip；二进制误落到文本兜底 → carrier_detect error `unknown_format` |
 | `annexe_fields` | Schema | 七字段是否齐备（Label/ContentProducer/ProduceID 必填非空，基线） | pass；fail+`field_missing`；error+`payload_malformed` |
-| `annexe_charset` | Schema | 字段值是否符合附录 E 字符集（M1 基线：禁控制字符，待原文收紧） | pass；fail+`charset_invalid` |
-| `annexe_label_enum` | Schema | Label 枚举取值是否合法（1=是/2=可能是/3=疑似） | pass；fail+`label_enum_invalid` |
+| `annexe_charset` | Schema | 字段值是否符合附录 E 字符集（j 条：GB18030 码位 0x21~0x7E 除 `\"` 转义；空格/控制/DEL/多字节均违规——中文名称应使用编码） | pass；fail+`charset_invalid` |
+| `annexe_label_enum` | Schema | Label 枚举取值是否合法（附录 E c)：1=属于/2=可能/3=疑似，类型为字符串；数字形态宽容通过） | pass；fail+`label_enum_invalid` |
 | `annexe_unknown_field` | Schema | 是否出现未知字段（严格策略） | pass；fail+`unknown_field` |
 | `fields_agree` | Schema | 多站点字段是否互相一致（FIELDS_DISAGREE） | pass/fail；<2 解码站点时 skip |
-| `duplicate_label` | Schema | 是否重复打标 | 一致重复 → **warn**（不影响判定）；其他 skip |
+| `duplicate_label` | Schema | 是否重复打标 | 一致重复 → **fail**（GB 45438-2025 第 6.1 c)：应仅保留一份）→ 不合规；其他 skip |
 | `forensic_wipe` | 取证 | 擦除证据综合评估 | `metadata_shell_empty` 信号 → error → inconclusive |
 | `forensic_checksum` | 取证 | CRC/校验信号评估 | M1 基线：任何 CRC 失配 → warn（字段仍可读时判定随字段） |
 | `forensic_padding` | 取证 | 异常填充信号评估 | warn |
