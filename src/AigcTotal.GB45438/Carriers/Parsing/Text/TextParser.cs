@@ -10,7 +10,8 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Text
 {
     /// <summary>
     /// 文本载体解析：编码探测（BOM → 严格 UTF-8；失败视为二进制误探测 → unknown_format）
-    /// → 首/尾显式标识的要素组合匹配。
+    /// → ① YAML front matter 隐式标识（TC260-PG-20258A：Markdown 文件头部 AIGC 映射）
+    /// → ② 首/尾显式标识的要素组合匹配。
     /// GB 45438-2025 第 5.1 条：文字形式的显式标识应同时包含人工智能要素（"人工智能"或"AI"）
     /// 与生成合成要素（"生成"和/或"合成"）——标准不规定固定文案，故按要素组合判定；
     /// 匹配窗口为去首尾空白后的前/后 64 字符（"起始位置/末尾位置"的工程界定，写入文档）。
@@ -19,6 +20,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Text
     public sealed class TextParser : ICarrierParser
     {
         private const int AffixWindow = 64;
+        private const int FrontMatterMaxScan = 4096;
 
         private static readonly string[] AiTokens = { "人工智能", "AI" };
         private static readonly string[] GenTokens = { "生成", "合成" };
@@ -84,6 +86,17 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Text
             var sites = new List<LabelSite>();
             var checks = new List<CheckResult> { new CheckResult(CheckIds.CarrierDetect, CheckOutcome.Pass) };
 
+            // ① YAML front matter 隐式标识（Markdown 等，TC260-PG-20258A）
+            if (TryExtractFrontMatter(text, encoding, bomBytes, out LabelSite? frontMatterSite))
+            {
+                sites.Add(frontMatterSite!);
+                checks.Add(new CheckResult(CheckIds.TextFrontMatterAigc, CheckOutcome.Pass));
+            }
+            else
+            {
+                checks.Add(new CheckResult(CheckIds.TextFrontMatterAigc, CheckOutcome.Skip));
+            }
+
             string trimmedStart = text.TrimStart();
             string trimmedEnd = text.TrimEnd();
 
@@ -114,6 +127,61 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Text
                 : new CheckResult(CheckIds.TextPromptAffix, CheckOutcome.Skip));
 
             return new CarrierScan(sites, EmptySignals, checks);
+        }
+
+        /// <summary>
+        /// YAML front matter 提取（TC260-PG-20258A）：首行 --- 定界的元数据区内，
+        /// 存在 "AIGC:" 键时，站点负载 = AIGC 行起至缩进块结束（交给 FrontMatterDecoder 出字段）。
+        /// </summary>
+        private static bool TryExtractFrontMatter(string text, Encoding encoding, int bomBytes, out LabelSite? site)
+        {
+            site = null;
+            if (!text.StartsWith("---", StringComparison.Ordinal)) return false;
+            int firstLineEnd = text.IndexOf('\n');
+            if (firstLineEnd < 0) return false;
+            int scanLimit = Math.Min(text.Length, FrontMatterMaxScan);
+
+            int pos = firstLineEnd + 1;
+            int aigcStart = -1;
+            int aigcLineEnd = -1;
+            while (pos < scanLimit)
+            {
+                int eol = text.IndexOf('\n', pos);
+                if (eol < 0 || eol > scanLimit) eol = Math.Min(text.Length, scanLimit);
+                string line = text.Substring(pos, eol - pos).TrimEnd('\r');
+                if (line == "---" || line == "...") return false; // front matter 结束，未见 AIGC
+                if (line.StartsWith("AIGC:", StringComparison.Ordinal))
+                {
+                    aigcStart = pos;
+                    aigcLineEnd = eol;
+                    break;
+                }
+                pos = eol + 1;
+            }
+            if (aigcStart < 0) return false;
+
+            // AIGC 映射块 = AIGC 行 + 后续缩进行（空行或非缩进行结束）
+            int blockEnd = aigcLineEnd;
+            int scan = aigcLineEnd + 1;
+            while (scan < scanLimit)
+            {
+                int eol = text.IndexOf('\n', scan);
+                if (eol < 0 || eol > scanLimit) eol = Math.Min(text.Length, scanLimit);
+                string line = text.Substring(scan, eol - scan).TrimEnd('\r');
+                if (line.Length == 0 || !(line[0] == ' ' || line[0] == '\t')) break;
+                blockEnd = eol;
+                scan = eol + 1;
+            }
+
+            int blockLen = blockEnd - aigcStart;
+            if (blockLen <= 0) return false;
+            long byteOffset = bomBytes + encoding.GetByteCount(text.ToCharArray(), 0, aigcStart);
+            byte[] payload = Encoding.UTF8.GetBytes(text.Substring(aigcStart, blockLen));
+            site = new LabelSite(
+                new SiteLocation(new List<object> { "front_matter", 0 }, byteOffset, payload.Length),
+                PayloadEncoding.FrontMatterYaml,
+                payload);
+            return true;
         }
 
         /// <summary>要素组合判定：窗口内同时含人工智能要素与生成合成要素（5.1 b)）。</summary>

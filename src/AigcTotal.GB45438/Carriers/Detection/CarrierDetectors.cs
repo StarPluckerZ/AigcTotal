@@ -67,6 +67,89 @@ namespace AigcTotal.GB45438.Carriers.Detection
             && header[8] == (byte)'W' && header[9] == (byte)'A' && header[10] == (byte)'V' && header[11] == (byte)'E';
     }
 
+    public sealed class AviDetector : ICarrierDetector
+    {
+        public CarrierKind Kind => CarrierKind.Avi;
+        public int HeaderLength => 12;
+
+        public bool Matches(byte[] header, int length) =>
+            length >= 12
+            && header[0] == (byte)'R' && header[1] == (byte)'I' && header[2] == (byte)'F' && header[3] == (byte)'F'
+            && header[8] == (byte)'A' && header[9] == (byte)'V' && header[10] == (byte)'I' && header[11] == (byte)' ';
+    }
+
+    public sealed class WebpDetector : ICarrierDetector
+    {
+        public CarrierKind Kind => CarrierKind.Webp;
+        public int HeaderLength => 12;
+
+        public bool Matches(byte[] header, int length) =>
+            length >= 12
+            && header[0] == (byte)'R' && header[1] == (byte)'I' && header[2] == (byte)'F' && header[3] == (byte)'F'
+            && header[8] == (byte)'W' && header[9] == (byte)'E' && header[10] == (byte)'B' && header[11] == (byte)'P';
+    }
+
+    public sealed class FlacDetector : ICarrierDetector
+    {
+        public CarrierKind Kind => CarrierKind.Flac;
+        public int HeaderLength => 4;
+
+        public bool Matches(byte[] header, int length) =>
+            length >= 4 && header[0] == (byte)'f' && header[1] == (byte)'L'
+            && header[2] == (byte)'a' && header[3] == (byte)'C';
+    }
+
+    public sealed class OggDetector : ICarrierDetector
+    {
+        public CarrierKind Kind => CarrierKind.Ogg;
+        public int HeaderLength => 4;
+
+        public bool Matches(byte[] header, int length) =>
+            length >= 4 && header[0] == (byte)'O' && header[1] == (byte)'g'
+            && header[2] == (byte)'g' && header[3] == (byte)'S';
+    }
+
+    public sealed class TiffDetector : ICarrierDetector
+    {
+        public CarrierKind Kind => CarrierKind.Tiff;
+        public int HeaderLength => 4;
+
+        public bool Matches(byte[] header, int length) =>
+            length >= 4
+            && ((header[0] == 0x49 && header[1] == 0x49 && header[2] == 0x2A && header[3] == 0x00)
+                || (header[0] == 0x4D && header[1] == 0x4D && header[2] == 0x00 && header[3] == 0x2A));
+    }
+
+    public sealed class GifDetector : ICarrierDetector
+    {
+        public CarrierKind Kind => CarrierKind.Gif;
+        public int HeaderLength => 4;
+
+        public bool Matches(byte[] header, int length) =>
+            length >= 4 && header[0] == (byte)'G' && header[1] == (byte)'I'
+            && header[2] == (byte)'F' && header[3] == (byte)'8';
+    }
+
+    public sealed class OoxmlDetector : ICarrierDetector
+    {
+        public CarrierKind Kind => CarrierKind.Ooxml;
+        public int HeaderLength => 4;
+
+        public bool Matches(byte[] header, int length) =>
+            length >= 4 && header[0] == 0x50 && header[1] == 0x4B
+            && header[2] == 0x03 && header[3] == 0x04;
+    }
+
+    public sealed class PdfDetector : ICarrierDetector
+    {
+        public CarrierKind Kind => CarrierKind.Pdf;
+        public int HeaderLength => 5;
+
+        public bool Matches(byte[] header, int length) =>
+            length >= 5 && header[0] == (byte)'%' && header[1] == (byte)'P'
+            && header[2] == (byte)'D' && header[3] == (byte)'F' && header[4] == (byte)'-';
+    }
+
     public sealed class Mp3Detector : ICarrierDetector
     {
         public CarrierKind Kind => CarrierKind.Mp3;
@@ -85,6 +168,14 @@ namespace AigcTotal.GB45438.Carriers.Detection
             new JpegDetector(),
             new Mp4Detector(),
             new WavDetector(),
+            new AviDetector(),
+            new WebpDetector(),
+            new FlacDetector(),
+            new OggDetector(),
+            new TiffDetector(),
+            new GifDetector(),
+            new PdfDetector(),
+            new OoxmlDetector(),
             new Mp3Detector(),
         };
 

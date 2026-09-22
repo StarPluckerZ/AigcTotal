@@ -7,11 +7,19 @@ using AigcTotal.GB45438.Carriers;
 using AigcTotal.GB45438.Carriers.Detection;
 using AigcTotal.GB45438.Carriers.Parsing;
 using AigcTotal.GB45438.Carriers.Parsing.Jpeg;
+using AigcTotal.GB45438.Carriers.Parsing.Avi;
+using AigcTotal.GB45438.Carriers.Parsing.Flac;
+using AigcTotal.GB45438.Carriers.Parsing.Gif;
 using AigcTotal.GB45438.Carriers.Parsing.Mp3;
 using AigcTotal.GB45438.Carriers.Parsing.Mp4;
+using AigcTotal.GB45438.Carriers.Parsing.Ogg;
+using AigcTotal.GB45438.Carriers.Parsing.Ooxml;
+using AigcTotal.GB45438.Carriers.Parsing.Pdf;
 using AigcTotal.GB45438.Carriers.Parsing.Png;
 using AigcTotal.GB45438.Carriers.Parsing.Text;
+using AigcTotal.GB45438.Carriers.Parsing.Tiff;
 using AigcTotal.GB45438.Carriers.Parsing.Wav;
+using AigcTotal.GB45438.Carriers.Parsing.Webp;
 using AigcTotal.GB45438.IO;
 using AigcTotal.GB45438.Schema;
 using AigcTotal.GB45438.Verdict;
@@ -58,6 +66,14 @@ namespace AigcTotal.GB45438
                 [CarrierKind.Wav] = new WavParser(),
                 [CarrierKind.Mp3] = new Mp3Parser(),
                 [CarrierKind.Text] = new TextParser(),
+                [CarrierKind.Flac] = new FlacParser(),
+                [CarrierKind.Ogg] = new OggParser(),
+                [CarrierKind.Avi] = new AviParser(),
+                [CarrierKind.Webp] = new WebpParser(),
+                [CarrierKind.Tiff] = new TiffParser(),
+                [CarrierKind.Gif] = new GifParser(),
+                [CarrierKind.Ooxml] = new OoxmlParser(),
+                [CarrierKind.Pdf] = new PdfParser(),
             };
         }
 
@@ -67,6 +83,7 @@ namespace AigcTotal.GB45438
             {
                 [PayloadEncoding.Json] = new JsonPayloadDecoder(),
                 [PayloadEncoding.XmpAigc] = new XmpPayloadDecoder(),
+                [PayloadEncoding.FrontMatterYaml] = new FrontMatterDecoder(),
             };
         }
 

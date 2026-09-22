@@ -37,8 +37,9 @@ M1 进行中（2026-09）：
 - [x] golden 语料库（`samples/corpus/`，确定性自造、无版权平台文件）+ golden 报告回归测试（schema 冻结执行器）
 - [x] 健壮性套件进 CI：种子变异、截断、长度/深度炸弹——任何输入不允许异常逃出 `Verify`
 - [x] **TC260 四份载体指南 + GB 45438-2025 正文双重校准完成**（2026-09-22）：MP4 keys/ilst 通道（PG-20257A）、PNG tEXt 包裹形态（PG-20259A 附录B）、XMP 官方命名空间、附录 E j) 字符集白名单、6.1 c) 唯一标识（重复打标=不合规）、5.1 文本显式标识要素组合匹配
-- [ ] SharpFuzz 覆盖率引导模糊测试（`tools/AigcTotal.Fuzz`，Linux）——测试架已就绪
-- [ ] 指南新揭示的载体（OGG/FLAC/M4A/FLV/MKV/AVI、docx/PDF 等文档类）列入后续路线
+- [x] **载体横向扩张完成**（2026-09-22，共 14 类）：新增 FLAC/OGG（Vorbis Comment）、AVI（LIST/INFO）、WebP（XMP chunk）、TIFF（IFD0 0x2BC）、GIF（App Extension）、OOXML 文档族（docProps/custom.xml）、PDF（Info Dict /AIGC，有界裸扫描）、Markdown front matter；M4A 经 MP4 keys/ilst 通道原生覆盖
+- [ ] SharpFuzz 覆盖率引导模糊测试（`tools/AigcTotal.Fuzz`，Linux）——已在 Debian 小主机夜间运行
+- [ ] 缓议载体：HEIF/HEIC、FLV、MKV/WebM（EBML）、OFD/xmind/UOF
 
 ## 使用
 

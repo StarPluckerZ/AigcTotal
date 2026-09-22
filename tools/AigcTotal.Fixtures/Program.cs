@@ -145,6 +145,15 @@ namespace AigcTotal.Fixtures
                 Mp4Builder.Ftyp("isom"),
                 Mp4Builder.Container("moov", Mp4Builder.UdtaMetaAigc(validJson)),
                 Mp4Builder.Mdat(32)));
+            yield return ("flac-aigc.flac", FlacBuilder.Build(validJson));
+            yield return ("ogg-aigc.ogg", OggBuilder.Build(validJson));
+            yield return ("avi-aigc.avi", AviBuilder.Build(validJson));
+            yield return ("webp-xmp.webp", WebpBuilder.Build(validXmp));
+            yield return ("tiff-xmp.tiff", TiffBuilder.Build(validXmp));
+            yield return ("gif-xmp.gif", GifBuilder.Build(validXmp));
+            yield return ("ooxml-custom-aigc.docx", OoxmlBuilder.Build(validJson));
+            yield return ("pdf-info-aigc.pdf", PdfBuilder.Build(validJson));
+            yield return ("md-front-matter.md", Encoding.UTF8.GetBytes(MdBuilder.FrontMatter("1", "CorpusStudio", "C-002")));
 
             // TC260-PG-20259A 附录 B 形态：tEXt 负载为 {"AIGC":{七字段}} 包裹
             yield return ("png-text-wrapped.png", PngBuilder.Build(

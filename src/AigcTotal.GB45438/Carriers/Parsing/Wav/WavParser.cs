@@ -75,7 +75,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Wav
                 }
 
                 long pad = chunkSize % 2; // 奇数长度 chunk 后有 1 字节填充
-                reader.Seek(dataStart + chunkSize + pad);
+                reader.Seek(Math.Min(dataStart + chunkSize + pad, reader.Length));
             }
 
             var checks = new List<CheckResult>

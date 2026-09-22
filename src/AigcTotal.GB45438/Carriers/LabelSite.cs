@@ -16,6 +16,9 @@ namespace AigcTotal.GB45438.Carriers
 
         /// <summary>文本载体首尾提示语模式。</summary>
         PromptPattern = 4,
+
+        /// <summary>Markdown front matter 中的 AIGC YAML 映射（TC260-PG-20258A）。</summary>
+        FrontMatterYaml = 5,
     }
 
     public static class PayloadEncodingTokens
@@ -28,6 +31,7 @@ namespace AigcTotal.GB45438.Carriers
                 case PayloadEncoding.XmpAigc: return "xmp_aigc";
                 case PayloadEncoding.Id3Text: return "id3_text";
                 case PayloadEncoding.PromptPattern: return "prompt_pattern";
+                case PayloadEncoding.FrontMatterYaml: return "front_matter_yaml";
                 default: return encoding.ToString().ToLowerInvariant();
             }
         }

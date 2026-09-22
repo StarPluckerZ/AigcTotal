@@ -230,6 +230,14 @@ namespace AigcTotal.Report
                 case CarrierKind.Wav: return "audio/wav"; // IANA 无正式注册，事实标准（docs §3.1-A）
                 case CarrierKind.Mp3: return "audio/mpeg";
                 case CarrierKind.Text: return "text/plain";
+                case CarrierKind.Flac: return "audio/flac";
+                case CarrierKind.Ogg: return "audio/ogg";
+                case CarrierKind.Avi: return "video/x-msvideo";
+                case CarrierKind.Webp: return "image/webp";
+                case CarrierKind.Tiff: return "image/tiff";
+                case CarrierKind.Gif: return "image/gif";
+                case CarrierKind.Ooxml: return "application/octet-stream"; // 家族 MIME 依文档类型而异，carrier 令牌承载语义
+                case CarrierKind.Pdf: return "application/pdf";
                 default: return "application/octet-stream";
             }
         }

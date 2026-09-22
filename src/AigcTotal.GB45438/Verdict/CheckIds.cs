@@ -19,6 +19,15 @@ namespace AigcTotal.GB45438.Verdict
         public const string WavRiffAigc = "wav_riff_aigc";
         public const string Mp3Id3Txxx = "mp3_id3_txxx";
         public const string TextPromptAffix = "text_prompt_affix";
+        public const string FlacVorbisAigc = "flac_vorbis_aigc";
+        public const string OggCommentAigc = "ogg_comment_aigc";
+        public const string AviRiffAigc = "avi_riff_aigc";
+        public const string WebpXmpAigc = "webp_xmp_aigc";
+        public const string TiffIfd0Aigc = "tiff_ifd0_aigc";
+        public const string GifAppExtAigc = "gif_appext_aigc";
+        public const string OoxmlCustomAigc = "ooxml_custom_aigc";
+        public const string PdfInfoAigc = "pdf_info_aigc";
+        public const string TextFrontMatterAigc = "text_front_matter_aigc";
 
         // —— Schema 层 ——
         public const string AnnexeFields = "annexe_fields";

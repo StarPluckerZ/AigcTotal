@@ -15,6 +15,15 @@
 | `wav_riff_aigc` | 发现 | WAV RIFF AIGC chunk 是否发现标识 | pass/skip；空壳 → 信号 `metadata_shell_empty` → inconclusive |
 | `mp3_id3_txxx` | 发现 | MP3 ID3 TXXX（描述=AIGC）帧是否发现标识 | pass/skip（v2.3/v2.4，UTF-8/Latin-1 描述） |
 | `text_prompt_affix` | 发现 | 文本首尾标识区是否发现提示语模式（基线模式表，待 TC260 文本指南校准） | pass/skip；二进制误落到文本兜底 → carrier_detect error `unknown_format` |
+| `flac_vorbis_aigc` | 发现 | FLAC VORBIS_COMMENT 块（key=AIGC）是否发现标识（TC260-PG-202510A） | pass/skip |
+| `ogg_comment_aigc` | 发现 | OGG（Vorbis/OPUS）注释头（key=AIGC）是否发现标识（TC260-PG-202510A） | pass/skip |
+| `avi_riff_aigc` | 发现 | AVI LIST/INFO 内 AIGC 子块是否发现标识（TC260-PG-20257A） | pass/skip |
+| `webp_xmp_aigc` | 发现 | WebP "XMP " chunk 是否发现标识（TC260-PG-20259A） | pass/skip |
+| `tiff_ifd0_aigc` | 发现 | TIFF IFD0 tag 0x2BC（type 7）是否发现标识（TC260-PG-20259A） | pass/skip |
+| `gif_appext_aigc` | 发现 | GIF Application Extension（XMP Data）是否发现标识（TC260-PG-20259A） | pass/skip |
+| `ooxml_custom_aigc` | 发现 | OOXML docProps/custom.xml property[@name=AIGC] 是否发现标识（TC260-PG-20258A，docx/pptx/xlsx 族） | pass/skip；条目在但不可读 → error → inconclusive |
+| `pdf_info_aigc` | 发现 | PDF Info Dictionary /AIGC 键是否发现标识（TC260-PG-20258A）；有界裸扫描，对象流压缩形态不可见（已知局限） | pass/skip |
+| `text_front_matter_aigc` | 发现 | Markdown front matter AIGC 映射是否发现标识（TC260-PG-20258A，YAML 形态，字段照常校验） | pass/skip |
 | `annexe_fields` | Schema | 七字段是否齐备（Label/ContentProducer/ProduceID 必填非空，基线） | pass；fail+`field_missing`；error+`payload_malformed` |
 | `annexe_charset` | Schema | 字段值是否符合附录 E 字符集（j 条：GB18030 码位 0x21~0x7E 除 `\"` 转义；空格/控制/DEL/多字节均违规——中文名称应使用编码） | pass；fail+`charset_invalid` |
 | `annexe_label_enum` | Schema | Label 枚举取值是否合法（附录 E c)：1=属于/2=可能/3=疑似，类型为字符串；数字形态宽容通过） | pass；fail+`label_enum_invalid` |
