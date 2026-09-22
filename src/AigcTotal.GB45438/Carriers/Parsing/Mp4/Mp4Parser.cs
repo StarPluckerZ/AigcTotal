@@ -217,10 +217,12 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Mp4
             for (uint i = 0; i < count; i++)
             {
                 uint keySize = reader.ReadUInt32BE("key size");
-                if (keySize < 8)
+                // keySize 来自不可信文件：(int)keySize 在 ≥2^31 时回绕为负——必须先做上界检查
+                //（键名是短字符串，AIGC 远小于 64KB；越界即结构畸形 → 无法判定）
+                if (keySize < 8 || keySize > 0x10000)
                 {
                     state.Signals.Add(new ForensicSignal(SignalKind.StructureMalformed, null,
-                        $"keys entry {i + 1} declares key size {keySize} < 8"));
+                        $"keys entry {i + 1} declares unreasonable key size {keySize}"));
                     return;
                 }
                 reader.ReadUInt32BE("key namespace"); // 'mdta'；命名空间不区分（键名才是语义标识）

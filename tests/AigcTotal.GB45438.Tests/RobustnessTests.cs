@@ -136,6 +136,29 @@ namespace AigcTotal.GB45438.Tests
             Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
         }
 
+        [Fact]
+        public void Mp4_KeysSizeOverflowBomb_NoEscape_Inconclusive()
+        {
+            // SharpFuzz 首轮发现的真 bug 回归：keys 条目 keySize ≥ 2^31 时 (int) 强转回绕为负，
+            // ReadExactly(负数) 抛 ArgumentOutOfRangeException 逃出门面——修复后应为畸形 → 无法判定
+            byte[] keys = Mp4Builder.Box("keys", new byte[]
+            {
+                0x00, 0x00, 0x00, 0x00,               // version/flags
+                0x00, 0x00, 0x00, 0x01,               // entry count = 1
+                0xFF, 0xFF, 0xFF, 0xFF,               // keySize = 2^32-1 → (int) 回绕
+                (byte)'m', (byte)'d', (byte)'t', (byte)'a',
+            });
+            byte[] meta = Mp4Builder.Box("meta", new byte[4].Concat(keys).ToArray());
+            byte[] mp4 = Mp4Builder.Build(
+                Mp4Builder.Ftyp("isom"),
+                Mp4Builder.Container("moov", Mp4Builder.Container("udta", meta)));
+
+            var result = AigcLabelVerifier.Verify(mp4);
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+            Assert.Contains(result.Signals, s => s.Kind == SignalKind.StructureMalformed);
+        }
+
         /// <summary>嵌套容器 box 深度炸弹：depth 层 moov 套 aigc。</summary>
         private static byte[] Mp4DepthBomb(int depth)
         {
