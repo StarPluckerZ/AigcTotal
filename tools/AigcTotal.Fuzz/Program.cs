@@ -14,11 +14,9 @@ namespace AigcTotal.Fuzz
         public static void Main(string[] args)
         {
             ArgumentNullException.ThrowIfNull(args);
-            SharpFuzz.Fuzzer.LibFuzzer.Run((Stream input) =>
+            SharpFuzz.Fuzzer.LibFuzzer.Run((ReadOnlySpan<byte> data) =>
             {
-                using var buffer = new MemoryStream();
-                input.CopyTo(buffer);
-                VerificationResult result = AigcLabelVerifier.Verify(buffer.ToArray());
+                VerificationResult result = AigcLabelVerifier.Verify(data.ToArray());
                 if ((int)result.Verdict is < 1 or > 4)
                 {
                     throw new InvalidOperationException($"verdict out of range: {result.Verdict}");
