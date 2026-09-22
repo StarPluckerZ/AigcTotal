@@ -101,6 +101,12 @@ namespace AigcTotal.GB45438.Schema
             {
                 return new PayloadDecodeResult(null, CheckCodes.PayloadMalformed);
             }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // 信任边界策略：不可信负载触发的任何下游解析器异常（如 BCL XmlReader 在
+                // 编码嗅探边角抛出的 ArgumentOutOfRange）一律视为负载畸形，绝不让其逃出
+                return new PayloadDecodeResult(null, CheckCodes.PayloadMalformed);
+            }
         }
     }
 }

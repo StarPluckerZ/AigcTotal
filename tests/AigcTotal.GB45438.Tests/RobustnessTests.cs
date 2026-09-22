@@ -138,6 +138,19 @@ namespace AigcTotal.GB45438.Tests
         }
 
         [Fact]
+        public void Mp4_XmpEncodingSniffBomb_NoEscape_Inconclusive()
+        {
+            // SharpFuzz 第三批发现：XMP 声明后跟 0xFF 字节 → BCL XmlReader 编码切换内部
+            // 抛 ArgumentOutOfRange（非 XmlException）；信任边界策略：任何下游异常 = 负载畸形
+            string xmp = "<?xml version=\"1.0\"\u00FF\u00FF\u00FF\u00FF\u00FF\u00FF";
+            byte[] mp4 = Mp4Builder.Build(Mp4Builder.Ftyp("isom"), Mp4Builder.UuidXmp(xmp));
+
+            var result = AigcLabelVerifier.Verify(mp4);
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+        }
+
+        [Fact]
         public void Mp3_ExtHeaderSkipBomb_NoEscape_Inconclusive()
         {
             // SharpFuzz 第二批发现：ID3v2.3 扩展头 extSize≈2^32 → Seek 越过流边界，
