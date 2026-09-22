@@ -138,6 +138,23 @@ namespace AigcTotal.GB45438.Tests
         }
 
         [Fact]
+        public void Mp3_ExtHeaderSkipBomb_NoEscape_Inconclusive()
+        {
+            // SharpFuzz 第二批发现：ID3v2.3 扩展头 extSize≈2^32 → Seek 越过流边界，
+            // MemoryStream 异常逃出契约；修复后 BoundedReader.Seek 防护 → 截断 → 无法判定
+            byte[] mp3 = new byte[]
+            {
+                (byte)'I', (byte)'D', (byte)'3', 0x03, 0x00, 0x40, // v2.3, flags 0x40=扩展头
+                0x00, 0x00, 0x00, 0x20,                            // tag size (syncsafe 32)
+                0xFF, 0xFF, 0xFF, 0xFF,                            // extSize 炸弹
+            };
+
+            var result = AigcLabelVerifier.Verify(mp3);
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+        }
+
+        [Fact]
         public void Mp4_KeysSizeOverflowBomb_NoEscape_Inconclusive()
         {
             // SharpFuzz 首轮发现的真 bug 回归：keys 条目 keySize ≥ 2^31 时 (int) 强转回绕为负，

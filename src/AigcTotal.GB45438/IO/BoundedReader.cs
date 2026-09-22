@@ -64,7 +64,17 @@ namespace AigcTotal.GB45438.IO
 
         public long TotalRead => _totalRead;
 
-        public void Seek(long offset) => _stream.Seek(offset, SeekOrigin.Begin);
+        /// <summary>移动到文件内绝对偏移。越界（负数或越过文件尾）即结构损坏 → CarrierStructureException，
+        /// 由门面消化——所有解析器的 Seek 都经由此处，杜绝越界定位逃出契约。</summary>
+        public void Seek(long offset)
+        {
+            if (offset < 0 || offset > Length)
+            {
+                throw new CarrierStructureException(Verdict.CheckCodes.StructureTruncated,
+                    $"seek to {offset} outside file bounds [0, {Length}]");
+            }
+            _stream.Seek(offset, SeekOrigin.Begin);
+        }
 
         /// <summary>登记一个容器结构（chunk/box/segment）；超出 MaxStructures 抛 CarrierLimitException。</summary>
         public void CountStructure()
