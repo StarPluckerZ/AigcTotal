@@ -46,6 +46,7 @@ M1 完成（2026-09）。判定核心、报告信封与语料/回归体系均已
 - [x] 健壮性套件进 CI：种子变异、截断、长度/深度炸弹——任何输入不允许异常逃出 `Verify`
 - [x] **TC260 四份载体指南 + GB 45438-2025 正文双重校准完成**（2026-09-22）：MP4 keys/ilst 通道（PG-20257A）、PNG tEXt 包裹形态（PG-20259A 附录B）、XMP 官方命名空间、附录 E j) 字符集白名单、6.1 c) 唯一标识（重复打标=不合规）、5.1 文本显式标识要素组合匹配
 - [x] netstandard2.0 行为冒烟套件（net10.0 运行器引用 ns2.0 编译产物，免装 .NET Framework 开发包）
+- [x] **`AigcTotal.Log` 透明日志库**（2026-09-23，TDD）：RFC 6962 k-split Merkle（官方向量 + 3.6M 叶真实包含证明进 CI）、append-only 段文件（崩溃残行容忍）、checkpoint 链（prev-hash 自哈希、canonical 字面量钉死）、keys.json 状态机（吊销半开区间语义）、ES256 线格式（SPKI/kid/DER↔P1363）；`aigc-verify` CLI 与签名服务随后续步骤落地
 - [ ] 完整 RFC 8785 附录测试向量集（当前为附录 B/D 向量子集）
 - [x] SharpFuzz 覆盖率引导模糊测试（`tools/AigcTotal.Fuzz`，Linux）——在 Debian 小主机夜间运行（未进 GitHub CI）
 - [ ] 缓议载体：HEIF/HEIC、FLV、MKV/WebM（EBML）、OFD/xmind/UOF

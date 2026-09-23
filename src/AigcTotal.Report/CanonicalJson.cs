@@ -162,5 +162,207 @@ namespace AigcTotal.Report
             }
             sb.Append('"');
         }
+
+        /// <summary>
+        /// canonical JSON 读端（只接受 <see cref="Serialize"/> 产出的子集）：顶层必须为对象；
+        /// 值域 string / 整数 / bool / null / 数组 / 对象；浮点、重复键、尾随内容、孤立控制字符
+        /// 一律 FormatException——与写端的类型防御对称。\uXXXX 转义按 JSON 逐字解码（含孤立代理项，
+        /// 不做配对校验——数据透传原则）。
+        /// </summary>
+        public static Dictionary<string, object?> Deserialize(string json)
+        {
+            if (json == null) throw new ArgumentNullException(nameof(json));
+            var reader = new Reader(json);
+            var result = reader.ReadObject();
+            reader.SkipWs();
+            if (!reader.Eof) throw new FormatException("trailing content after JSON object");
+            return result;
+        }
+
+        private sealed class Reader
+        {
+            private readonly string _s;
+            private int _i;
+
+            public Reader(string s) { _s = s; }
+
+            public bool Eof => _i >= _s.Length;
+
+            public void SkipWs()
+            {
+                while (_i < _s.Length && (_s[_i] == ' ' || _s[_i] == '\t' || _s[_i] == '\r' || _s[_i] == '\n')) _i++;
+            }
+
+            public Dictionary<string, object?> ReadObject()
+            {
+                SkipWs();
+                Expect('{');
+                var result = new Dictionary<string, object?>();
+                SkipWs();
+                if (Peek() == '}')
+                {
+                    _i++;
+                    return result;
+                }
+                while (true)
+                {
+                    SkipWs();
+                    string key = ReadString();
+                    if (result.ContainsKey(key)) throw new FormatException($"duplicate key '{key}'");
+                    SkipWs();
+                    Expect(':');
+                    result[key] = ReadValue();
+                    SkipWs();
+                    char c = Next();
+                    if (c == '}') return result;
+                    if (c != ',') throw new FormatException("expected ',' or '}'");
+                }
+            }
+
+            public object? ReadValue()
+            {
+                SkipWs();
+                char c = Peek();
+                switch (c)
+                {
+                    case '"': return ReadString();
+                    case '{': return ReadObject();
+                    case '[':
+                        _i++;
+                        var list = new List<object?>();
+                        SkipWs();
+                        if (Peek() == ']') { _i++; return list; }
+                        while (true)
+                        {
+                            list.Add(ReadValue());
+                            SkipWs();
+                            char t = Next();
+                            if (t == ']') return list;
+                            if (t != ',') throw new FormatException("expected ',' or ']'");
+                            SkipWs();
+                        }
+                    case 't':
+                        ExpectLiteral("true"); return true;
+                    case 'f':
+                        ExpectLiteral("false"); return false;
+                    case 'n':
+                        ExpectLiteral("null"); return null;
+                    default:
+                        return ReadInteger();
+                }
+            }
+
+            private long ReadInteger()
+            {
+                int start = _i;
+                if (Peek() == '-') _i++;
+                bool any = false;
+                while (_i < _s.Length && _s[_i] >= '0' && _s[_i] <= '9') { _i++; any = true; }
+                if (!any) throw new FormatException("invalid number");
+                if (_i < _s.Length && (_s[_i] == '.' || _s[_i] == 'e' || _s[_i] == 'E'))
+                {
+                    throw new FormatException("floats are not allowed in canonical documents");
+                }
+#if NET
+                bool ok = long.TryParse(_s.AsSpan(start, _i - start),
+                    System.Globalization.NumberStyles.AllowLeadingSign,
+                    System.Globalization.CultureInfo.InvariantCulture, out long value);
+#else
+                bool ok = long.TryParse(_s.Substring(start, _i - start),
+                    System.Globalization.NumberStyles.AllowLeadingSign,
+                    System.Globalization.CultureInfo.InvariantCulture, out long value);
+#endif
+                if (!ok)
+                {
+                    throw new FormatException("integer out of range");
+                }
+                return value;
+            }
+
+            private string ReadString()
+            {
+                Expect('"');
+                var sb = new StringBuilder();
+                while (true)
+                {
+                    if (_i >= _s.Length) throw new FormatException("unterminated string");
+                    char c = _s[_i++];
+                    if (c == '"') return sb.ToString();
+                    if (c == '\\')
+                    {
+                        if (_i >= _s.Length) throw new FormatException("unterminated escape");
+                        char e = _s[_i++];
+                        switch (e)
+                        {
+                            case '"': sb.Append('"'); break;
+                            case '\\': sb.Append('\\'); break;
+                            case '/': sb.Append('/'); break;
+                            case 'b': sb.Append('\b'); break;
+                            case 'f': sb.Append('\f'); break;
+                            case 'n': sb.Append('\n'); break;
+                            case 'r': sb.Append('\r'); break;
+                            case 't': sb.Append('\t'); break;
+                            case 'u':
+                                if (_i + 4 > _s.Length) throw new FormatException("bad \\u escape");
+                                sb.Append((char)ParseHex4());
+                                _i += 4;
+                                break;
+                            default: throw new FormatException("bad escape");
+                        }
+                    }
+                    else if (c < 0x20)
+                    {
+                        throw new FormatException("raw control character in string");
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+                }
+            }
+
+            private int ParseHex4()
+            {
+                int value = 0;
+                for (int k = 0; k < 4; k++)
+                {
+                    char c = _s[_i + k];
+                    int d = c >= '0' && c <= '9' ? c - '0'
+                        : c >= 'a' && c <= 'f' ? c - 'a' + 10
+                        : c >= 'A' && c <= 'F' ? c - 'A' + 10
+                        : throw new FormatException("bad hex digit in \\u escape");
+                    value = (value << 4) | d;
+                }
+                return value;
+            }
+
+            private void ExpectLiteral(string literal)
+            {
+                if (_i + literal.Length > _s.Length ||
+                    string.CompareOrdinal(_s, _i, literal, 0, literal.Length) != 0)
+                {
+                    throw new FormatException($"expected '{literal}'");
+                }
+                _i += literal.Length;
+            }
+
+            private char Peek()
+            {
+                if (Eof) throw new FormatException("unexpected end of input");
+                return _s[_i];
+            }
+
+            private char Next()
+            {
+                char c = Peek();
+                _i++;
+                return c;
+            }
+
+            private void Expect(char expected)
+            {
+                if (Next() != expected) throw new FormatException($"expected '{expected}'");
+            }
+        }
     }
 }

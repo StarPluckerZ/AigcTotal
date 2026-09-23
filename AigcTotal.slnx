@@ -3,11 +3,13 @@
     <Project Path="src/AigcTotal.GB45438/AigcTotal.GB45438.csproj" />
     <Project Path="src/AigcTotal.Report.Cli/AigcTotal.Report.Cli.csproj" />
     <Project Path="src/AigcTotal.Report/AigcTotal.Report.csproj" />
+    <Project Path="src/AigcTotal.Log/AigcTotal.Log.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AigcTotal.GB45438.Tests/AigcTotal.GB45438.Tests.csproj" />
     <Project Path="tests/AigcTotal.GB45438.NetStandard.Tests/AigcTotal.GB45438.NetStandard.Tests.csproj" />
     <Project Path="tests/AigcTotal.Report.Tests/AigcTotal.Report.Tests.csproj" />
+    <Project Path="tests/AigcTotal.Log.Tests/AigcTotal.Log.Tests.csproj" />
     <Project Path="tests/AigcTotal.TestSupport/AigcTotal.TestSupport.csproj" />
   </Folder>
   <Folder Name="/tools/">

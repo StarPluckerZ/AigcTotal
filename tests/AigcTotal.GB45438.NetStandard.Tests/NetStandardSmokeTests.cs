@@ -92,6 +92,28 @@ namespace AigcTotal.NetStandard.Tests
             Assert.StartsWith("sha256:", envelope.ReportSha256);
         }
 
+        [Fact]
+        public void Log_Merkle_Works_OnNetStandardBuild()
+        {
+            // 叶哈希经库的 RFC 6962 域分离路径（0x00 前缀）——ns2.0 编译产物同样生效
+            var leaves = new List<byte[]>
+            {
+                AigcTotal.Log.Merkle.Rfc6962.LeafHash(Encoding.UTF8.GetBytes("a")),
+                AigcTotal.Log.Merkle.Rfc6962.LeafHash(Encoding.UTF8.GetBytes("b")),
+                AigcTotal.Log.Merkle.Rfc6962.LeafHash(Encoding.UTF8.GetBytes("c")),
+            };
+            Assert.Equal("022a6979e6dab7aa5ae4c3e5e45f7e977112a7e63593820dbec1ec738a24f93c",
+                Convert.ToHexStringLower(leaves[0]));
+            var tree = AigcTotal.Log.Merkle.MerkleTree.FromLeafHashes(leaves);
+            byte[][] path = tree.InclusionPath(1);
+
+            Assert.True(AigcTotal.Log.Merkle.MerkleVerifier.VerifyInclusion(
+                leaves[1], 1, 3, path, tree.RootHash));
+            // 与 net10.0 构建同根（跨 TFM 可复现；期望值由独立实现计算）
+            Assert.Equal("36642e73c2540ab121e3a6bf9545b0a24982cd830eb13d3cd19de3ce6c021ec1",
+                Convert.ToHexStringLower(tree.RootHash));
+        }
+
         private static string Hex(byte[] bytes)
         {
             var sb = new StringBuilder(bytes.Length * 2);
