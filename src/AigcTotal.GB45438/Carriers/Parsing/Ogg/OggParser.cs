@@ -49,7 +49,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Ogg
                 reader.ReadExactly(4, "serial");
                 reader.ReadExactly(4, "sequence");
                 reader.ReadExactly(4, "page crc");
-                byte segments = reader.ReadAtMost(1)[0];
+                byte segments = reader.ReadExactly(1, "segment count")[0]; // EOF → 截断诊断
                 byte[] table = reader.ReadExactly(segments, "segment table");
 
                 foreach (byte segLen in table)

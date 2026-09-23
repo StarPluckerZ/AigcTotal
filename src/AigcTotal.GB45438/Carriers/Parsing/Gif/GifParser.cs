@@ -72,6 +72,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Gif
             // 逻辑屏幕描述符：宽(2) 高(2) packed(1) 背景(1) 长宽比(1)——packed bit7=全局色表存在
             long packedPos = 6 + 4; // magic 6 + 宽高 4
             reader.Seek(packedPos);
+            // 安全：入口处已 ReadExactly(6+7) 保证 Length ≥ 13，此处必读到 1 字节
             byte packed = reader.ReadAtMost(1)[0];
             reader.Seek(packedPos + 3); // 回到描述符尾
             if ((packed & 0x80) != 0)
@@ -86,7 +87,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Gif
             List<LabelSite> sites, List<ForensicSignal> signals, ref bool sawXmp)
         {
             long extOffset = reader.Position - 2;
-            byte blockSize = reader.ReadAtMost(1)[0];
+            byte blockSize = reader.ReadExactly(1, "app extension block size")[0]; // EOF → 截断诊断
             byte[] ident = reader.ReadExactly(blockSize, "app identifier");
             // Adobe XMP 规范：标识符 "XMP Data"；鉴别码不校验
             if (blockSize != 11 || ident[0] != (byte)'X' || ident[1] != (byte)'M' || ident[2] != (byte)'P')
@@ -100,7 +101,15 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Gif
             var packet = new List<byte>();
             while (true)
             {
-                byte len = reader.ReadAtMost(1)[0];
+                // SharpFuzz 发现：XMP 子块链在 EOF 截断时 ReadAtMost 返回空数组，索引即越界逃出门面
+                byte[] one = reader.ReadAtMost(1);
+                if (one.Length == 0)
+                {
+                    signals.Add(new ForensicSignal(SignalKind.StructureTruncated, null,
+                        "unexpected EOF while reading XMP sub-blocks"));
+                    return false;
+                }
+                byte len = one[0];
                 if (len == 0) break;
                 packet.AddRange(reader.ReadExactly(len, "XMP sub-block"));
             }
@@ -133,12 +142,19 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Gif
             SkipSubBlocks(reader, signals);
         }
 
-        /// <summary>读子块序列（len 字节 + 数据），直到 0 终止符。</summary>
+        /// <summary>读子块序列（len 字节 + 数据），直到 0 终止符；EOF 视为截断而非越界。</summary>
         private static void SkipSubBlocks(BoundedReader reader, List<ForensicSignal> signals)
         {
             while (true)
             {
-                byte len = reader.ReadAtMost(1)[0];
+                byte[] one = reader.ReadAtMost(1);
+                if (one.Length == 0)
+                {
+                    signals.Add(new ForensicSignal(SignalKind.StructureTruncated, null,
+                        "unexpected EOF while reading sub-blocks"));
+                    return;
+                }
+                byte len = one[0];
                 if (len == 0) return;
                 reader.Seek(reader.Position + len);
             }

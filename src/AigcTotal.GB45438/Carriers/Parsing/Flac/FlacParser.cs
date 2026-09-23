@@ -33,12 +33,11 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Flac
                 ct.ThrowIfCancellationRequested();
                 reader.CountStructure();
 
-                byte header = reader.ReadAtMost(1)[0];
-                bool isLast = (header & 0x80) != 0;
-                byte blockType = (byte)(header & 0x7F);
-                uint blockLen = (uint)(reader.ReadAtMost(1)[0] << 16
-                    | reader.ReadAtMost(1)[0] << 8
-                    | reader.ReadAtMost(1)[0]);
+                // 头 4 字节整体读取：EOF 落在头内 → 截断诊断（不可逐字节 ReadAtMost 索引，EOF 返回空数组）
+                byte[] header = reader.ReadExactly(4, "metadata block header");
+                bool isLast = (header[0] & 0x80) != 0;
+                byte blockType = (byte)(header[0] & 0x7F);
+                uint blockLen = (uint)(header[1] << 16 | header[2] << 8 | header[3]);
                 long blockStart = reader.Position;
 
                 if (blockType == BlockTypeVorbisComment)
