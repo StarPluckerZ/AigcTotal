@@ -10,7 +10,8 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Wav
 {
     /// <summary>
     /// WAV（RIFF/WAVE，小端）解析：遍历 chunk，枚举 AIGC chunk 的 JSON 负载；
-    /// 奇数长度 chunk 的填充字节按规范跳过。LIST/INFO 降险通道待 TC260 音频指南原文实现。
+    /// 奇数长度 chunk 的填充字节按规范跳过。TC260-PG-202510A 对 WAV 仅规定 'AIGC' chunk
+    /// 裸 JSON（无位置规定），无 LIST/INFO 条款——不设降险通道。
     /// </summary>
     public sealed class WavParser : ICarrierParser
     {

@@ -101,6 +101,11 @@ namespace AigcTotal.GB45438.Schema
                     }
                     else
                     {
+                        // 重复键：JSON 标准下语义未定义，验证器立场从严格——拒绝而非 last-wins
+                        if (result.ContainsKey(key))
+                        {
+                            throw new FormatException($"duplicate key '{key}'");
+                        }
                         result[key] = ParseScalarValue();
                     }
                     SkipWs();
@@ -155,7 +160,7 @@ namespace AigcTotal.GB45438.Schema
                             case 't': sb.Append('\t'); break;
                             case 'u':
                                 if (_i + 4 > _s.Length) throw new FormatException("bad \\u escape");
-                                sb.Append((char)Convert.ToInt32(_s.Substring(_i, 4), 16));
+                                sb.Append((char)ParseHex4());
                                 _i += 4;
                                 break;
                             default:
@@ -172,6 +177,22 @@ namespace AigcTotal.GB45438.Schema
                     }
                 }
                 return sb.ToString();
+            }
+
+            /// <summary>严格解析 \u 后恰好 4 个十六进制数字（不收符号/空白，区别于 Convert.ToInt32 的宽松解析）。</summary>
+            private int ParseHex4()
+            {
+                int value = 0;
+                for (int k = 0; k < 4; k++)
+                {
+                    char c = _s[_i + k];
+                    int d = c >= '0' && c <= '9' ? c - '0'
+                        : c >= 'a' && c <= 'f' ? c - 'a' + 10
+                        : c >= 'A' && c <= 'F' ? c - 'A' + 10
+                        : throw new FormatException($"bad hex digit '{c}' in \\u escape");
+                    value = (value << 4) | d;
+                }
+                return value;
             }
 
             private char Peek()

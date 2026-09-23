@@ -220,13 +220,17 @@ namespace AigcTotal.Report
             };
         }
 
-        private static string MimeOf(CarrierKind kind, string? detail)
-        {
-            switch (kind)
+            private static string MimeOf(CarrierKind kind, string? detail)
             {
-                case CarrierKind.Png: return "image/png";
-                case CarrierKind.Jpeg: return "image/jpeg";
-                case CarrierKind.Mp4: return detail == "qt" ? "video/quicktime" : "video/mp4";
+                switch (kind)
+                {
+                    case CarrierKind.Png: return "image/png";
+                    case CarrierKind.Jpeg: return "image/jpeg";
+                    // brand 由解析器剥过尾部填充空格："qt"=QuickTime/MOV、"M4A"=M4A 音频（IANA 注册类型）
+                    case CarrierKind.Mp4:
+                        return detail == "qt" ? "video/quicktime"
+                            : detail == "M4A" ? "audio/mp4"
+                            : "video/mp4";
                 case CarrierKind.Wav: return "audio/wav"; // IANA 无正式注册，事实标准（docs §3.1-A）
                 case CarrierKind.Mp3: return "audio/mpeg";
                 case CarrierKind.Text: return "text/plain";

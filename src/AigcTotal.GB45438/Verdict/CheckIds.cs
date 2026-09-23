@@ -14,6 +14,7 @@ namespace AigcTotal.GB45438.Verdict
         public const string PngTextAigc = "png_text_aigc";
         public const string PngXmpAigc = "png_xmp_aigc";
         public const string JpegApp1Xmp = "jpeg_app1_xmp";
+        public const string JpegExifUserComment = "jpeg_exif_usercomment";
         public const string Mp4XmpAigc = "mp4_xmp_aigc";
         public const string Mp4UdtaAigc = "mp4_udta_aigc";
         public const string WavRiffAigc = "wav_riff_aigc";

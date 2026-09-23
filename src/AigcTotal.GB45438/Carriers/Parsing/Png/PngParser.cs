@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Threading;
 using AigcTotal.GB45438.Carriers.Parsing;
 using AigcTotal.GB45438.IO;
@@ -9,8 +11,8 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Png
 {
     /// <summary>
     /// PNG 容器解析：遍历 chunk 序列。
-    /// - 标识通道：tEXt（关键字 AIGC，JSON 负载）与 iTXt（关键字 XML:com.adobe.xmp，XMP 负载，
-    ///   TC260 实测格式：&lt;TC260:AIGC&gt; 内嵌附录 E JSON）。
+    /// - 标识通道：tEXt（关键字 AIGC，JSON 负载）、zTXt（关键字 AIGC，zlib 解压后 JSON）、
+    ///   iTXt（关键字 XML:com.adobe.xmp，XMP 负载，TC260 实测格式：&lt;TC260:AIGC&gt; 内嵌附录 E JSON）。
     /// - 大块（数据部分 &gt; MaxAlloc，典型为 IDAT）：流式 CRC 校验、零分配、不计入 MaxTotalRead——
     ///   与 MP4/WAV/MP3 的跳块策略一致；超大元数据块（tEXt/iTXt/zTXt）超出安全预算 → 畸形信号 → 无法判定。
     /// </summary>
@@ -31,6 +33,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Png
             var checks = new List<CheckResult>();
             int textIndex = 0;
             int itxtIndex = 0;
+            int ztxtIndex = 0;
             bool sawAigcText = false;
             bool sawXmpSite = false;
             bool sawEnd = false;
@@ -79,6 +82,11 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Png
                         case "iTXt":
                             CollectItxtChunk(data, dataOffset, itxtIndex, sites, signals, ref sawXmpSite);
                             itxtIndex++;
+                            break;
+                        case "zTXt":
+                            CollectZtxtChunk(data, dataOffset, ztxtIndex, sites, signals,
+                                options.Security.MaxAlloc, ref sawAigcText);
+                            ztxtIndex++;
                             break;
                     }
                 }
@@ -203,6 +211,93 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Png
             signals.Add(new ForensicSignal(SignalKind.StructureMalformed,
                 new SiteLocation(new List<object> { "iTXt", index }, offset, length),
                 "iTXt with malformed language/translated-keyword sections"));
+        }
+
+        /// <summary>
+        /// zTXt 布局：keyword NUL compressionMethod(1) zlib 数据流（0x78 0x01 头 + deflate + Adler-32）。
+        /// 关键字 AIGC 的 zTXt 经 zlib 解压后作为 JSON 站点；解压输出以 MaxAlloc 封顶
+        /// （KB 级密文可膨胀 GB 级明文），越限抛 CarrierLimitException → 资源上限 → 无法判定。
+        /// 畸形 zlib 流 → 畸形信号 → 无法判定（防假性 not_found）。
+        /// 站点坐标指向文件内的压缩字节区（写侧手术坐标），RawPayload 为解压后的负载。
+        /// </summary>
+        private static void CollectZtxtChunk(byte[] data, long dataOffset, int index,
+            List<LabelSite> sites, List<ForensicSignal> signals, long maxInflated, ref bool sawAigcText)
+        {
+            int separator = Array.IndexOf(data, (byte)0);
+            if (separator < 0)
+            {
+                signals.Add(new ForensicSignal(SignalKind.StructureMalformed,
+                    new SiteLocation(new List<object> { "zTXt", index }, dataOffset, data.Length),
+                    "zTXt without NUL separator"));
+                return;
+            }
+            string keyword = System.Text.Encoding.ASCII.GetString(data, 0, separator);
+            if (keyword != AigcKeyword) return;
+
+            if (data.Length < separator + 3)
+            {
+                signals.Add(new ForensicSignal(SignalKind.StructureMalformed,
+                    new SiteLocation(new List<object> { "zTXt", index }, dataOffset, data.Length),
+                    "zTXt too short for compression method and zlib stream"));
+                return;
+            }
+            byte compressionMethod = data[separator + 1];
+            if (compressionMethod != 0)
+            {
+                signals.Add(new ForensicSignal(SignalKind.StructureMalformed,
+                    new SiteLocation(new List<object> { "zTXt", index }, dataOffset, data.Length),
+                    $"zTXt compression method {compressionMethod} not supported"));
+                return;
+            }
+
+            // 布局：separator=NUL，separator+1=method，separator+2..3=zlib 头（CMF/FLG），
+            // 自 separator+4 起为裸 deflate 流（尾部 Adler-32 由 DeflateStream 忽略）
+            int zlibStart = separator + 4;
+            long compressedStart = dataOffset + zlibStart;
+            long compressedLength = data.Length - zlibStart;
+            byte[] payload;
+            try
+            {
+                using (var src = new MemoryStream(data, zlibStart, data.Length - zlibStart))
+                using (var inflate = new DeflateStream(src, CompressionMode.Decompress))
+                {
+                    var output = new MemoryStream();
+                    var buffer = new byte[64 * 1024];
+                    while (true)
+                    {
+                        int n = inflate.Read(buffer, 0, buffer.Length);
+                        if (n <= 0) break;
+                        output.Write(buffer, 0, n);
+                        if (output.Length > maxInflated)
+                        {
+                            throw new CarrierLimitException(LimitKind.Alloc,
+                                $"zTXt inflated size exceeds MaxAlloc {maxInflated}");
+                        }
+                    }
+                    payload = output.ToArray();
+                }
+            }
+            catch (InvalidDataException)
+            {
+                signals.Add(new ForensicSignal(SignalKind.StructureMalformed,
+                    new SiteLocation(new List<object> { "zTXt", index }, dataOffset, data.Length),
+                    "zTXt zlib stream invalid"));
+                return;
+            }
+
+            if (payload.Length == 0)
+            {
+                signals.Add(new ForensicSignal(SignalKind.MetadataShellEmpty,
+                    new SiteLocation(new List<object> { "zTXt", index }, compressedStart, compressedLength),
+                    "zTXt with keyword AIGC but empty payload"));
+                return;
+            }
+
+            sites.Add(new LabelSite(
+                new SiteLocation(new List<object> { "zTXt", index }, compressedStart, compressedLength),
+                PayloadEncoding.Json,
+                payload));
+            sawAigcText = true;
         }
 
         private static bool CrcMatches(byte[] type, byte[] data, uint storedCrc)

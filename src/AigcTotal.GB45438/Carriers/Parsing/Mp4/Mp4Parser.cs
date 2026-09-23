@@ -162,7 +162,9 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Mp4
                 else if (type == "ftyp" && dataSize >= 4)
                 {
                     byte[] brand = reader.ReadExactly(4, "major brand");
-                    state.Brand = Encoding.ASCII.GetString(brand);
+                    // major brand 为 4 字节定长字段：QuickTime 写 "qt  "、M4A 写 "M4A "——
+                    // 尾部填充空格剥掉再登记，否则报告 carrier_detail 带空格、MIME 映射无法等值比较
+                    state.Brand = Encoding.ASCII.GetString(brand).TrimEnd();
                     reader.Seek(dataEnd);
                 }
                 else if (type == "keys" && insideUdta)

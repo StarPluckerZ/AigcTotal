@@ -158,6 +158,61 @@ namespace AigcTotal.Report.Tests
             Assert.Contains("file not found", stderr.ToString());
         }
 
+        [Fact]
+        public void Cli_StdoutWithOutDir_Conflict_ExitsTen()
+        {
+            string file = Path.Combine(Path.GetTempPath(), "aigc-cli-" + Guid.NewGuid().ToString("N") + ".png");
+            File.WriteAllBytes(file, ValidPng());
+            try
+            {
+                var stdout = new StringWriter();
+                var stderr = new StringWriter();
+                string[] args = { "--stdout", "--out", Path.GetTempPath(), file };
+                int exit = ReportCli.Run(args, stdout, stderr);
+
+                Assert.Equal(10, exit);
+                Assert.Contains("mutually exclusive", stderr.ToString());
+            }
+            finally
+            {
+                File.Delete(file);
+            }
+        }
+
+        // —— MIME 映射（brand 由解析器剥过尾部填充空格）——
+
+        [Fact]
+        public void Mime_QuickTimeBrand_MapsToVideoQuicktime()
+        {
+            byte[] mov = AigcTotal.TestSupport.Mp4Builder.Build(
+                AigcTotal.TestSupport.Mp4Builder.Ftyp("qt  "), // QuickTime 实写形态（含填充）
+                AigcTotal.TestSupport.Mp4Builder.Container("moov",
+                    AigcTotal.TestSupport.Mp4Builder.UdtaAigc(ValidPayload)));
+            var result = AigcLabelVerifier.Verify(mov);
+            Assert.Equal("qt", result.CarrierDetail);
+
+            string hash = "sha256:" + Hex(System.Security.Cryptography.SHA256.HashData(mov));
+            var envelope = AigcReportBuilder.Build(result, hash, mov.Length, "aigc-report", "0.1.0");
+
+            Assert.Contains("\"mime\":\"video/quicktime\"", envelope.CanonicalJson);
+            Assert.Contains("\"carrier_detail\":\"qt\"", envelope.CanonicalJson);
+        }
+
+        [Fact]
+        public void Mime_M4aBrand_MapsToAudioMp4()
+        {
+            byte[] m4a = AigcTotal.TestSupport.Mp4Builder.Build(
+                AigcTotal.TestSupport.Mp4Builder.Ftyp("M4A "),
+                AigcTotal.TestSupport.Mp4Builder.Container("moov",
+                    AigcTotal.TestSupport.Mp4Builder.UdtaAigc(ValidPayload)));
+
+            var result = AigcLabelVerifier.Verify(m4a);
+            string hash = "sha256:" + Hex(System.Security.Cryptography.SHA256.HashData(m4a));
+            var envelope = AigcReportBuilder.Build(result, hash, m4a.Length, "aigc-report", "0.1.0");
+
+            Assert.Contains("\"mime\":\"audio/mp4\"", envelope.CanonicalJson);
+        }
+
         private static string Hex(byte[] bytes)
         {
             var sb = new StringBuilder(bytes.Length * 2);

@@ -29,12 +29,32 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Mp3
             uint tagSize = Syncsafe(header, 6);
             string detail = $"ID3 2.{versionMajor}";
 
+            if (versionMajor < 2 || versionMajor > 4)
+            {
+                signals.Add(new ForensicSignal(SignalKind.StructureMalformed, null,
+                    $"ID3 version 2.{versionMajor} is not a defined revision"));
+                return new CarrierScan(sites, signals, new List<CheckResult>
+                {
+                    new CheckResult(CheckIds.Mp3Id3Txxx, CheckOutcome.Error, code: CheckCodes.StructureMalformed),
+                }, detail);
+            }
+            if (versionMajor == 2)
+            {
+                // v2.2 为 3 字节帧 ID 的旧格式：按 v2.3/2.4 布局错位解析会得到垃圾——
+                // 显式报不支持（error → 无法判定），绝不出假 not_found
+                return new CarrierScan(sites, signals, new List<CheckResult>
+                {
+                    new CheckResult(CheckIds.Mp3Id3Txxx, CheckOutcome.Error,
+                        code: CheckCodes.ValueUnsupported, detail: "ID3v2.2 frames (3-byte IDs) not supported"),
+                }, detail);
+            }
+
             long tagEnd = Math.Min(reader.Length, 10L + tagSize);
 
             if ((flags & 0x40) != 0)
             {
-                // 扩展头：v2.3 尺寸含 4 字节自身，v2.4 不含
-                uint extSize = versionMajor >= 4 ? reader.ReadUInt32BE("ext size") : reader.ReadUInt32BE("ext size");
+                // 扩展头：v2.4 尺寸为 syncsafe（且不含自身 4 字节），v2.3 为普通 u32BE（含自身）
+                uint extSize = versionMajor >= 4 ? ReadSyncsafe32(reader) : reader.ReadUInt32BE("ext size");
                 long skip = versionMajor >= 4 ? Math.Max(0, (long)extSize) : Math.Max(0, (long)extSize - 4);
                 reader.Seek(reader.Position + skip);
             }

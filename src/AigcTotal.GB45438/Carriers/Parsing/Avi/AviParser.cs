@@ -27,6 +27,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Avi
             var sites = new List<LabelSite>();
             var signals = new List<ForensicSignal>();
             var checks = new List<CheckResult>();
+            int listIndex = 0;
             bool sawAigc = false;
 
             while (reader.Position < riffEnd)
@@ -56,8 +57,9 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Avi
                     string formType = Encoding.ASCII.GetString(reader.ReadExactly(4, "LIST form type"));
                     if (formType == "INFO")
                     {
-                        WalkInfo(reader, dataStart + 4, dataStart + chunkSize, sites, signals, ref sawAigc);
+                        WalkInfo(reader, dataStart + 4, dataStart + chunkSize, listIndex, sites, signals, ref sawAigc);
                     }
+                    listIndex++; // path 序号按“同类型（LIST）序号”约定递增
                 }
 
                 long pad = chunkSize % 2;
@@ -70,7 +72,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Avi
             return new CarrierScan(sites, signals, checks);
         }
 
-        private static void WalkInfo(BoundedReader reader, long start, long end,
+        private static void WalkInfo(BoundedReader reader, long start, long end, int listIndex,
             List<LabelSite> sites, List<ForensicSignal> signals, ref bool sawAigc)
         {
             reader.Seek(start);
@@ -100,7 +102,7 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Avi
                     if (trimmed.Length > 0)
                     {
                         sites.Add(new LabelSite(
-                            new SiteLocation(new List<object> { "LIST", 0 }, dataStart, trimmed.Length),
+                            new SiteLocation(new List<object> { "LIST", listIndex }, dataStart, trimmed.Length),
                             PayloadEncoding.Json,
                             trimmed));
                         sawAigc = true;

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.0 行为冒烟：运行器为 net10.0，但被测库经 SetTargetFramework 钉死为
+         netstandard2.0 编译产物（SHA256.Create 路径、无 Span 内建等），跑在本机 .NET 10 上。
+         免装 .NET Framework 开发包；同样可在 Linux SDK 容器中运行。 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1707;NU1202</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AigcTotal.GB45438\AigcTotal.GB45438.csproj" SetTargetFramework="TargetFramework=netstandard2.0" />
+    <ProjectReference Include="..\..\src\AigcTotal.Report\AigcTotal.Report.csproj" SetTargetFramework="TargetFramework=netstandard2.0" />
+    <ProjectReference Include="..\AigcTotal.TestSupport\AigcTotal.TestSupport.csproj" />
+  </ItemGroup>
+
+</Project>

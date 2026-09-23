@@ -208,5 +208,32 @@ namespace AigcTotal.GB45438.Tests
 
             Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
         }
+
+        [Fact]
+        public void Mp3_V24ExtHeaderSyncsafe_FramesStillReachable()
+        {
+            // 扩展头尺寸 ≥ 0x80：syncsafe 与普通 BE 编码出现分歧——未按 syncsafe 读取时会跳错位置漏帧
+            byte[] mp3 = Id3Builder.V24WithExtHeader(130, Id3Builder.TxxxFrame("AIGC", ValidJson));
+
+            var result = AigcLabelVerifier.Verify(mp3);
+
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.Mp3Id3Txxx && c.Outcome == CheckOutcome.Pass);
+        }
+
+        [Fact]
+        public void Mp3_V22Tag_ExplicitUnsupported_Inconclusive()
+        {
+            // v2.2 为 3 字节帧 ID 旧格式：显式报不支持（error → 无法判定），绝不出假 not_found
+            byte[] mp3 = Id3Builder.V22(("TXX", System.Text.Encoding.UTF8.GetBytes(
+                "\x03" + "AIGC\x00" + ValidJson)));
+
+            var result = AigcLabelVerifier.Verify(mp3);
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+            Assert.Contains(result.Checks, c =>
+                c.Check == CheckIds.Mp3Id3Txxx && c.Outcome == CheckOutcome.Error
+                && c.Code == CheckCodes.ValueUnsupported);
+        }
     }
 }

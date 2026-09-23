@@ -121,8 +121,9 @@ namespace AigcTotal.Report
         private static void WriteString(StringBuilder sb, string value)
         {
             sb.Append('"');
-            foreach (char c in value)
+            for (int i = 0; i < value.Length; i++)
             {
+                char c = value[i];
                 switch (c)
                 {
                     case '"': sb.Append("\\\""); break;
@@ -136,6 +137,21 @@ namespace AigcTotal.Report
                         if (c < 0x20)
                         {
                             sb.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                        }
+                        else if (char.IsSurrogate(c))
+                        {
+                            // RFC 8785 / ES6 JSON.stringify：合法代理对原样透传（编码为 4 字节 UTF-8）；
+                            // 孤立代理项转义为 \udXXX——原样输出会在 UTF-8 编码时被替换成 U+FFFD，
+                            // 破坏跨实现的字节可复现性
+                            if (char.IsHighSurrogate(c) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1]))
+                            {
+                                sb.Append(c).Append(value[i + 1]);
+                                i++;
+                            }
+                            else
+                            {
+                                sb.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                            }
                         }
                         else
                         {

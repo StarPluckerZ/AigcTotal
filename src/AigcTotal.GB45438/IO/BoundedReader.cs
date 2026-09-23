@@ -167,12 +167,15 @@ namespace AigcTotal.GB45438.IO
             return value;
         }
 
+        /// <summary>流式块的回调（ReadOnlySpan 是 ref struct，不能用 Action&lt;T&gt; 承载）。</summary>
+        public delegate void StreamChunkHandler(ReadOnlySpan<byte> chunk);
+
         /// <summary>
-        /// 流式推进 dataLength 字节并返回运行中的 CRC-32 状态（调用方以 Crc32.Finalize 收尾）。
-        /// 零分配、不计入 MaxTotalRead——该上限约束的是解析器保留/分配的字节量，本路径不保留任何字节，
-        /// 由文件实际长度兜底（声明越过 EOF 即 StructureTruncated）。用于跳过大块不相关数据（如 PNG IDAT）。
+        /// 流式推进 dataLength 字节并按块回调 chunk（零保留、不计入 MaxTotalRead——该上限约束的是
+        /// 解析器保留/分配的字节量，本路径不保留任何字节，由文件实际长度兜底）。
+        /// 用于跳过/校验大块不相关数据；声明越过 EOF → StructureTruncated。
         /// </summary>
-        public uint StreamCrc(uint runningCrc, long dataLength, string context)
+        public void StreamScan(long dataLength, StreamChunkHandler chunk, string context)
         {
             long fileRemaining = Length - Position;
             if (dataLength > fileRemaining)
@@ -180,6 +183,7 @@ namespace AigcTotal.GB45438.IO
                 throw new CarrierStructureException(Verdict.CheckCodes.StructureTruncated,
                     $"{context}: declared {dataLength} bytes but only {fileRemaining} remain");
             }
+            if (dataLength <= 0) return;
             int bufferSize = (int)Math.Min(64 * 1024, dataLength);
             var buffer = new byte[bufferSize];
             long remaining = dataLength;
@@ -192,10 +196,17 @@ namespace AigcTotal.GB45438.IO
                     throw new CarrierStructureException(Verdict.CheckCodes.StructureTruncated,
                         $"unexpected EOF in {context}");
                 }
-                runningCrc = Crc32.Update(runningCrc, buffer.AsSpan(0, read));
+                chunk(buffer.AsSpan(0, read));
                 remaining -= read;
             }
-            return runningCrc;
+        }
+
+        /// <summary>流式推进 dataLength 字节并返回运行中的 CRC-32 状态（调用方以 Crc32.Finalize 收尾）。</summary>
+        public uint StreamCrc(uint runningCrc, long dataLength, string context)
+        {
+            uint crc = runningCrc;
+            StreamScan(dataLength, span => crc = Crc32.Update(crc, span), context);
+            return crc;
         }
 
         public uint ReadUInt32LE(string context)

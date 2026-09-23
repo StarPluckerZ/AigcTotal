@@ -95,5 +95,53 @@ namespace AigcTotal.GB45438.Tests
                     () => AigcLabelVerifier.VerifyAsync(stream, null, cts.Token));
             }
         }
+
+        // —— EXIF UserComment 通道（TC260-PG-20259A 附录 B 包裹形态）——
+
+        [Fact]
+        public void Jpeg_ExifUserComment_Compliant()
+        {
+            const string payload =
+                "{\"AIGC\":{\"Label\":\"1\",\"ContentProducer\":\"ExifStudio\",\"ProduceID\":\"E-1\"," +
+                "\"ReservedCode1\":\"\",\"ContentPropagator\":\"\",\"PropagateID\":\"\",\"ReservedCode2\":\"\"}}";
+            byte[] jpeg = JpegBuilder.WithExifUserComment(payload);
+
+            var result = AigcLabelVerifier.Verify(jpeg);
+
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            var site = Assert.Single(result.Sites);
+            Assert.Equal(Carriers.PayloadEncoding.Json, site.Encoding);
+            Assert.Equal("ExifStudio", site.Fields!["ContentProducer"]);
+            Assert.Equal("Exif", Assert.IsType<string>(site.Location.Path[2]));
+            Assert.Equal("UserComment", Assert.IsType<string>(site.Location.Path[3]));
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.JpegExifUserComment && c.Outcome == CheckOutcome.Pass);
+        }
+
+        [Fact]
+        public void Jpeg_ExifUserComment_PlainTextComment_Ignored_NotFound()
+        {
+            // 普通照片的 UserComment 备注满地都是：非 AIGC 形态必须静默忽略（不出站点、不降档）
+            byte[] jpeg = JpegBuilder.WithExifUserComment(" 我的生活照 ");
+
+            var result = AigcLabelVerifier.Verify(jpeg);
+
+            Assert.Equal(VerdictKind.NotFound, result.Verdict);
+            Assert.Empty(result.Sites);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.JpegExifUserComment && c.Outcome == CheckOutcome.Skip);
+        }
+
+        [Fact]
+        public void Jpeg_ExifUserComment_MalformedJson_Inconclusive()
+        {
+            // 看起来是标识负载（{"AIGC"… 开头）但 JSON 畸形：通道在、读不出 → 无法判定（防假性 not_found）
+            byte[] jpeg = JpegBuilder.WithExifUserComment("{\"AIGC\":{\"Label\":");
+
+            var result = AigcLabelVerifier.Verify(jpeg);
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.JpegExifUserComment && c.Outcome == CheckOutcome.Pass);
+            Assert.Contains(result.Checks, c =>
+                c.Check == CheckIds.AnnexeFields && c.Outcome == CheckOutcome.Error);
+        }
     }
 }

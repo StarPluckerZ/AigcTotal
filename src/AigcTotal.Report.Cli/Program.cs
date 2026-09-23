@@ -78,6 +78,11 @@ namespace AigcTotal.Report.Cli
                 stderr.WriteLine("error: --stdout supports a single input file only");
                 return ExitError;
             }
+            if (toStdout && outDir != null)
+            {
+                stderr.WriteLine("error: --out and --stdout are mutually exclusive");
+                return ExitError;
+            }
 
             string toolVersion = ToolVersion;
             int worst = ExitCompliant;
@@ -85,10 +90,10 @@ namespace AigcTotal.Report.Cli
             foreach (string file in files)
             {
                 int code = ProcessFile(file, toStdout, pretty, outDir, toolVersion, stdout, stderr);
-                if (code > worst || worst == ExitCompliant)
+                // 严重度排序：10 > 1 > 3 > 2 > 0
+                if (Severity(code) > Severity(worst))
                 {
-                    // 严重度排序：10 > 1 > 3 > 2 > 0
-                    worst = Severity(code) > Severity(worst) ? code : worst;
+                    worst = code;
                 }
             }
             return worst;

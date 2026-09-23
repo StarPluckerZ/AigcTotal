@@ -6,7 +6,15 @@ GB 45438-2025《网络安全技术 人工智能生成合成内容标识方法》
 
 ## 它做什么
 
-解析 AI 生成合成服务嵌入文件的隐式标识元数据（PNG / JPEG / MP4/MOV / WAV / MP3 / 文本），对照附录 E 七字段校验，产出四档判定：
+解析 AI 生成合成服务嵌入文件的隐式标识元数据，对照附录 E 七字段校验，产出四档判定。载体覆盖 14 类（含对应显式/文档通道）：
+
+| 类别 | 载体与通道 |
+|---|---|
+| 图片 | PNG（tEXt / zTXt / iTXt-XMP）、JPEG（APP1-XMP / EXIF UserComment）、WebP、TIFF、GIF |
+| 视频 | MP4/MOV/M4A（uuid-XMP、udta keys/ilst）、AVI（LIST/INFO） |
+| 音频 | WAV（AIGC chunk）、MP3（ID3v2.3/2.4 TXXX）、FLAC/OGG（Vorbis Comment） |
+| 文档 | OOXML 文档族（docProps/custom.xml）、PDF（Info Dict /AIGC）、Markdown front matter |
+| 纯文本 | 首尾显式提示语（要素组合匹配） |
 
 | 判定 | 含义 |
 |---|---|
@@ -21,24 +29,25 @@ GB 45438-2025《网络安全技术 人工智能生成合成内容标识方法》
 
 ## 当前状态
 
-M1 进行中（2026-09）：
+M1 完成（2026-09）。判定核心、报告信封与语料/回归体系均已落地：
 
-- [x] 不可信输入安全的有界解析（`BoundedReader`：总读取/单次分配/深度/结构数四类上限）
+- [x] 不可信输入安全的有界解析（`BoundedReader`：总读取/单次分配/深度/结构数四类上限；流式扫描原语供零保留校验/跳读）
 - [x] 载体探测（多探测器命中即报歧义，不静默）
-- [x] PNG：`tEXt`（关键字 `AIGC`）与 `iTXt`（XMP，含 TC260 包装层）双通道；CRC 校验、截断取证；非元数据块（IDAT）流式跳过——多 MB 文件在极小读取预算内完成判定
-- [x] JPEG：APP1 XMP 站点
-- [x] MP4/MOV：box 树递归（`uuid` XMP + `udta/aigc` 双通道），`mdat` 零读取跳过，brand 细分记录
+- [x] PNG：`tEXt`（关键字 `AIGC`）、`zTXt`（zlib 解压，膨胀封顶）、`iTXt`（XMP，含 TC260 包装层）三通道；CRC 校验、截断取证；非元数据块（IDAT）流式跳过
+- [x] JPEG：APP1 XMP 与 EXIF UserComment（TC260-PG-20259A 附录 B 包裹形态）双通道；普通备注文本静默忽略，不误判
+- [x] MP4/MOV/M4A：box 树递归（`uuid` XMP + `udta` keys/ilst 双通道），`mdat` 零读取跳过，brand 细分记录（QuickTime/M4A MIME 正确映射）
 - [x] WAV：RIFF chunk 遍历（奇数长度填充处理）、`AIGC` chunk 站点、空壳取证
-- [x] MP3：ID3v2.3/2.4 帧遍历、`TXXX`（描述=AIGC）站点、syncsafe 帧长
-- [x] 文本：BOM/严格 UTF-8 探测、首尾提示语模式匹配（基线模式表）
-- [x] 附录 E JSON 负载解码、逐站点 schema 校验、多站点聚合
-- [x] 四档判定合成、同步 + 异步 API
-- [x] `aigc-report` CLI：canonical 报告信封（schema v1）官方参考实现；JCS canonical JSON、ULID、CI 友好退出码
-- [x] golden 语料库（`samples/corpus/`，确定性自造、无版权平台文件）+ golden 报告回归测试（schema 冻结执行器）
+- [x] MP3：ID3v2.3/2.4 帧遍历（v2.4 扩展头 syncsafe）、`TXXX`（描述=AIGC）站点；v2.2 显式报不支持（不出假 not_found）
+- [x] 文本：BOM/严格 UTF-8（全量流式校验，大文件只取首尾窗口判定）、首尾提示语要素组合匹配、Markdown front matter
+- [x] 载体横向扩张（共 14 类）：FLAC/OGG、AVI、WebP、TIFF、GIF、OOXML 文档族、PDF（头/尾窗口有界裸扫描）
+- [x] 附录 E JSON 负载解码（严格：重复键拒绝、`\u` 严格十六进制）、逐站点 schema 校验、多站点聚合、四档判定、同步 + 异步 API
+- [x] `aigc-report` CLI：canonical 报告信封（schema v1）官方参考实现；JCS canonical JSON（含 RFC 8785 孤立代理项转义）、ULID、CI 友好退出码
+- [x] golden 语料库（`samples/corpus/`，确定性自造、无版权平台文件）+ **全量 golden 报告回归**（45 份，四档判定 × 载体/负载形态/失败码/取证信号矩阵，`aigc-fixtures golden` 生成、逐字节比对、覆盖面地板断言）
 - [x] 健壮性套件进 CI：种子变异、截断、长度/深度炸弹——任何输入不允许异常逃出 `Verify`
 - [x] **TC260 四份载体指南 + GB 45438-2025 正文双重校准完成**（2026-09-22）：MP4 keys/ilst 通道（PG-20257A）、PNG tEXt 包裹形态（PG-20259A 附录B）、XMP 官方命名空间、附录 E j) 字符集白名单、6.1 c) 唯一标识（重复打标=不合规）、5.1 文本显式标识要素组合匹配
-- [x] **载体横向扩张完成**（2026-09-22，共 14 类）：新增 FLAC/OGG（Vorbis Comment）、AVI（LIST/INFO）、WebP（XMP chunk）、TIFF（IFD0 0x2BC）、GIF（App Extension）、OOXML 文档族（docProps/custom.xml）、PDF（Info Dict /AIGC，有界裸扫描）、Markdown front matter；M4A 经 MP4 keys/ilst 通道原生覆盖
-- [ ] SharpFuzz 覆盖率引导模糊测试（`tools/AigcTotal.Fuzz`，Linux）——已在 Debian 小主机夜间运行
+- [x] netstandard2.0 行为冒烟套件（net10.0 运行器引用 ns2.0 编译产物，免装 .NET Framework 开发包）
+- [ ] 完整 RFC 8785 附录测试向量集（当前为附录 B/D 向量子集）
+- [x] SharpFuzz 覆盖率引导模糊测试（`tools/AigcTotal.Fuzz`，Linux）——在 Debian 小主机夜间运行（未进 GitHub CI）
 - [ ] 缓议载体：HEIF/HEIC、FLV、MKV/WebM（EBML）、OFD/xmind/UOF
 
 ## 使用

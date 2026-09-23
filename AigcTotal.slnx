@@ -6,6 +6,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AigcTotal.GB45438.Tests/AigcTotal.GB45438.Tests.csproj" />
+    <Project Path="tests/AigcTotal.GB45438.NetStandard.Tests/AigcTotal.GB45438.NetStandard.Tests.csproj" />
     <Project Path="tests/AigcTotal.Report.Tests/AigcTotal.Report.Tests.csproj" />
     <Project Path="tests/AigcTotal.TestSupport/AigcTotal.TestSupport.csproj" />
   </Folder>

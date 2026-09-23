@@ -418,5 +418,84 @@ namespace AigcTotal.GB45438.Tests
 
             Assert.Equal(999, result.OptionsUsed.MaxTotalRead);
         }
+
+        // —— zTXt 通道（zlib 压缩负载）——
+
+        [Fact]
+        public void Png_ZtxtAigc_Compliant()
+        {
+            var png = PngBuilder.Build(
+                PngBuilder.Ztxt("AIGC", ValidPayload),
+                PngBuilder.Data("IEND", System.Array.Empty<byte>()));
+
+            var result = Verify(png);
+
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            var site = Assert.Single(result.Sites);
+            Assert.Equal("TestStudio", site.Fields!["ContentProducer"]);
+            // 站点坐标指向文件内压缩字节区（stored zlib 有固定开销，坐标长度 ≠ 解压后长度）
+            Assert.Equal("zTXt", Assert.IsType<string>(site.Location.Path[0]));
+            Assert.True(site.Location.Offset > 8);
+            Assert.True(site.Location.Length > 0);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.PngTextAigc && c.Outcome == CheckOutcome.Pass);
+        }
+
+        [Fact]
+        public void Png_ZtxtOtherKeyword_Ignored()
+        {
+            var png = PngBuilder.Build(
+                PngBuilder.Ztxt("Comment", "plain text"),
+                PngBuilder.Data("IEND", System.Array.Empty<byte>()));
+
+            var result = Verify(png);
+
+            Assert.Equal(VerdictKind.NotFound, result.Verdict);
+            Assert.Empty(result.Sites);
+        }
+
+        [Fact]
+        public void Png_ZtxtCorruptZlib_Inconclusive()
+        {
+            // 块头字节翻转：BTYPE 变为非法值 11 → DeflateStream 抛 InvalidDataException → 畸形信号 → 无法判定
+            byte[] payload = Encoding.UTF8.GetBytes(ValidPayload);
+            byte[] compressed = Zlib.Stored(payload);
+            compressed[2] ^= 0xFF; // stored 块头（zlib 头 2 字节之后）：0x01 → 0xFE
+
+            var png = PngBuilder.Build(
+                PngBuilder.Data("zTXt", new byte[] { 0x41, 0x49, 0x47, 0x43, 0x00, 0x00 }
+                    .Concat(compressed).ToArray()),
+                PngBuilder.Data("IEND", System.Array.Empty<byte>()));
+
+            var result = Verify(png);
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+        }
+
+        [Fact]
+        public void Png_ZtxtInflationBomb_LimitTriggers_Inconclusive()
+        {
+            // 高压缩比炸弹：16MB 零字节压成几 KB 密文，超出 MaxAlloc → 资源上限 → 无法判定
+            byte[] big = new byte[16 * 1024 * 1024];
+            byte[] compressed;
+            using (var dst = new System.IO.MemoryStream())
+            {
+                using (var zlib = new System.IO.Compression.ZLibStream(dst, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+                {
+                    zlib.Write(big, 0, big.Length);
+                }
+                compressed = dst.ToArray();
+            }
+            Assert.True(compressed.Length < 1024 * 512);
+
+            var png = PngBuilder.Build(
+                PngBuilder.Data("zTXt", new byte[] { 0x41, 0x49, 0x47, 0x43, 0x00, 0x00 }
+                    .Concat(compressed).ToArray()),
+                PngBuilder.Data("IEND", System.Array.Empty<byte>()));
+
+            var result = AigcLabelVerifier.Verify(png, new VerifyOptions { Security = { MaxAlloc = 1024 * 1024 } });
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+            Assert.Contains(result.Signals, s => s.Kind == SignalKind.ResourceLimitExceeded);
+        }
     }
 }

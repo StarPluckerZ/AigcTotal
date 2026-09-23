@@ -24,13 +24,21 @@ namespace AigcTotal.GB45438.Schema
             {
                 string line = rawLine.TrimEnd('\r').Trim();
                 if (line.Length == 0 || line.StartsWith("AIGC:", StringComparison.Ordinal)) continue;
+                if (line[0] == '#') continue; // YAML 注释
                 int colon = line.IndexOf(':');
                 if (colon <= 0)
                 {
                     return new PayloadDecodeResult(null, CheckCodes.PayloadMalformed);
                 }
                 string key = line.Substring(0, colon).Trim();
-                string value = line.Substring(colon + 1).Trim().Trim('\'', '"');
+                string value = line.Substring(colon + 1).Trim();
+                // 只剥配对引号（'ab' → ab；"ab" → ab；不对称的引号是值的一部分，保留）
+                if (value.Length >= 2
+                    && ((value[0] == '"' && value[value.Length - 1] == '"')
+                        || (value[0] == '\'' && value[value.Length - 1] == '\'')))
+                {
+                    value = value.Substring(1, value.Length - 2);
+                }
                 fields[key] = value;
             }
             if (fields.Count == 0)

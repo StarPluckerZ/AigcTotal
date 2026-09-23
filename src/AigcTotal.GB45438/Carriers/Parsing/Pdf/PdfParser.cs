@@ -11,9 +11,10 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Pdf
     /// <summary>
     /// PDF 解析（TC260-PG-20258A）：Document Information Dictionary 的 /AIGC 键，
     /// 值为 PDF 字面字符串 (...) 内的附录 E JSON。
-    /// M1 采用有界裸扫描（不解析 xref/对象流）：在前 MaxTotalRead 字节内定位 "/AIGC" 字节序列，
-    /// 解析其后的 PDF 字面字符串（括号深度 + 转义）。对象流压缩形态的 Info 字典不可见——
-    /// 此类文件报 not_found 属已知局限，写入文档。
+    /// 采用有界裸扫描（不解析 xref/对象流）：Info 字典按惯例位于文件头部或紧邻 trailer 的文件尾，
+    /// 故把 MaxTotalRead 对半分为头/尾两个窗口扫描，文件不超预算时等价全扫。
+    /// 超大 PDF 中部（既不在头也不在尾窗口）的 Info 字典不可见——此类文件报 not_found 属已知局限，写入文档。
+    /// 对象流压缩形态的 Info 字典同样不可见。
     /// </summary>
     public sealed class PdfParser : ICarrierParser
     {
@@ -24,12 +25,22 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Pdf
         public CarrierScan Scan(BoundedReader reader, VerifyOptions options, CancellationToken ct)
         {
             reader.Seek(0);
-            long take = Math.Min(reader.Length, options.Security.MaxTotalRead);
-            byte[] bytes = reader.ReadAtMost(take);
-            if (bytes.Length < reader.Length)
+            long length = reader.Length;
+            // 预算扣除探测阶段已读取的头部字节，剩余对半分给头/尾窗口
+            long budget = Math.Max(1, options.Security.MaxTotalRead - reader.TotalRead);
+            long half = budget / 2;
+
+            // 头窗口 [0, headLen)；尾窗口 [length - tailLen, length)，与头窗口不重叠
+            long headLen = Math.Min(length, Math.Max(1, half));
+            byte[] head = reader.ReadAtMost(headLen);
+            long tailStart = headLen;
+            byte[] tail = EmptyBuffer;
+            if (length > headLen)
             {
-                throw new CarrierLimitException(LimitKind.TotalRead,
-                    $"pdf input exceeds MaxTotalRead {options.Security.MaxTotalRead}");
+                long remainingBudget = Math.Max(1, options.Security.MaxTotalRead - reader.TotalRead);
+                tailStart = Math.Max(headLen, length - remainingBudget);
+                reader.Seek(tailStart);
+                tail = reader.ReadAtMost(length - tailStart);
             }
 
             var sites = new List<LabelSite>();
@@ -37,27 +48,35 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Pdf
             var checks = new List<CheckResult>();
             bool sawAigc = false;
 
-            int searchFrom = 0;
-            int match;
-            while ((match = IndexOf(bytes, Needle, searchFrom)) >= 0)
-            {
-                if (TryParseLiteralString(bytes, match + Needle.Length, out byte[] literal, out int endPos))
-                {
-                    sites.Add(new LabelSite(
-                        new SiteLocation(new List<object> { "AIGC", 0 }, match, endPos - match),
-                        PayloadEncoding.Json,
-                        literal));
-                    sawAigc = true;
-                    break;
-                }
-                searchFrom = match + Needle.Length;
-            }
+            sawAigc = TryScanWindow(head, 0, sites) || TryScanWindow(tail, tailStart, sites);
 
             checks.Add(sawAigc
                 ? new CheckResult(CheckIds.PdfInfoAigc, CheckOutcome.Pass)
                 : new CheckResult(CheckIds.PdfInfoAigc, CheckOutcome.Skip));
             return new CarrierScan(sites, signals, checks);
         }
+
+        /// <summary>在窗口内定位 /AIGC 字面字符串；windowStart 为窗口首字节的文件内绝对偏移。</summary>
+        private static bool TryScanWindow(byte[] window, long windowStart, List<LabelSite> sites)
+        {
+            int searchFrom = 0;
+            int match;
+            while ((match = IndexOf(window, Needle, searchFrom)) >= 0)
+            {
+                if (TryParseLiteralString(window, match + Needle.Length, out byte[] literal, out int endPos))
+                {
+                    sites.Add(new LabelSite(
+                        new SiteLocation(new List<object> { "AIGC", 0 }, windowStart + match, endPos - match),
+                        PayloadEncoding.Json,
+                        literal));
+                    return true;
+                }
+                searchFrom = match + Needle.Length;
+            }
+            return false;
+        }
+
+        private static readonly byte[] EmptyBuffer = System.Array.Empty<byte>();
 
         private static int IndexOf(byte[] haystack, byte[] needle, int from)
         {

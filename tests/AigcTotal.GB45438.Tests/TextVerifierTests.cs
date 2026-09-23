@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text;
 using AigcTotal.GB45438.Verdict;
 using Xunit;
@@ -114,6 +115,76 @@ namespace AigcTotal.GB45438.Tests
             var result = AigcLabelVerifier.Verify(text);
 
             Assert.Equal(VerdictKind.Compliant, result.Verdict);
+        }
+
+        [Fact]
+        public void Text_LargeFile_SuffixPrompt_StillCompliant()
+        {
+            // 头尾窗口改造回归：大文件只需判定首尾窗口，中段不再整体读入
+            var sb = new System.Text.StringBuilder();
+            sb.Append("本内容由人工智能生成。\n");
+            while (sb.Length < 300 * 1024)
+            {
+                sb.Append("正文填充段落，用于撑大文件体积。\n");
+            }
+            sb.Append("本文末尾提示：AI生成内容。\n");
+            byte[] text = Encoding.UTF8.GetBytes(sb.ToString());
+            Assert.True(text.Length > 64 * 1024);
+
+            var result = AigcLabelVerifier.Verify(text);
+
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            Assert.Equal(2, result.Sites.Count); // 前缀 + 后缀
+        }
+
+        [Fact]
+        public void Text_LargePlainFile_NotFound_NotInconclusive()
+        {
+            // 大而无标识的合法文本：可判定（not_found），不再因超过读取预算降为 inconclusive
+            var sb = new System.Text.StringBuilder();
+            while (sb.Length < 200 * 1024)
+            {
+                sb.Append("普通正文，没有任何提示语。\n");
+            }
+            byte[] text = Encoding.UTF8.GetBytes(sb.ToString());
+
+            var result = AigcLabelVerifier.Verify(text);
+
+            Assert.Equal(VerdictKind.NotFound, result.Verdict);
+        }
+
+        [Fact]
+        public void Text_InvalidUtf8BeyondHeadWindow_Inconclusive()
+        {
+            // 头窗口之后出现非法 UTF-8：全量流式校验必须仍然抓到（不能只验头尾）
+            var sb = new System.Text.StringBuilder();
+            sb.Append("这是一篇普通文章。\n");
+            while (sb.Length < 100 * 1024)
+            {
+                sb.Append("正文填充。\n");
+            }
+            byte[] text = Encoding.UTF8.GetBytes(sb.ToString());
+            text[90 * 1024] = 0xFF; // 非法首字节
+
+            var result = AigcLabelVerifier.Verify(text);
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+            Assert.Contains(result.Checks, c =>
+                c.Check == CheckIds.CarrierDetect && c.Outcome == CheckOutcome.Error
+                && c.Code == CheckCodes.UnknownFormat);
+        }
+
+        [Fact]
+        public void Text_Utf8Bom_FrontMatter_StillDetected()
+        {
+            // BOM 后紧跟 front matter：解码必须剥掉 BOM，否则 "---" 首行匹配被 BOM 字符挡住
+            byte[] body = Encoding.UTF8.GetBytes("---\nAIGC:\n  Label: '1'\n  ContentProducer: 'BomStudio'\n  ProduceID: 'B-1'\n---\n\n正文");
+            byte[] text = new byte[] { 0xEF, 0xBB, 0xBF }.Concat(body).ToArray();
+
+            var result = AigcLabelVerifier.Verify(text);
+
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.TextFrontMatterAigc && c.Outcome == CheckOutcome.Pass);
         }
     }
 }

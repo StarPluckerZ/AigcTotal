@@ -117,6 +117,59 @@ namespace AigcTotal.GB45438.Tests
         }
 
         [Fact]
+        public void Ooxml_StreamingDescriptorEntry_Compliant()
+        {
+            // 流式写出形态（本地头 csize=0 + bit3 描述符 + 完整中央目录）：
+            // 长度取自中央目录 → 正常提取，描述符不干扰（旧实现走签名猜测路径会混入描述符字节）
+            var result = AigcLabelVerifier.Verify(OoxmlBuilder.BuildStreaming(ValidJson));
+
+            Assert.Equal(Carriers.CarrierKind.Ooxml, result.Carrier);
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            Assert.Equal("W-001", result.Sites[0].Fields!["ProduceID"]);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.OoxmlCustomAigc && c.Outcome == CheckOutcome.Pass);
+        }
+
+        [Fact]
+        public void Ooxml_NoTargetEntry_CentralDirectory_NotFound()
+        {
+            // 合法 ZIP（有中央目录）但无 docProps/custom.xml → not_found 终态
+            byte[] zip = OoxmlBuilder.BuildStreaming(ValidJson);
+            // 复用流式形态但把条目名改成无关等长条目（19 字符）：手改 CD 与本地头的名字字段
+            byte[] renamed = RenameOnlyEntry(zip, "docProps/custom.xml", "docProps/unused.xml");
+
+            var result = AigcLabelVerifier.Verify(renamed);
+
+            Assert.Equal(Carriers.CarrierKind.Ooxml, result.Carrier);
+            Assert.Equal(VerdictKind.NotFound, result.Verdict);
+            Assert.Contains(result.Checks, c => c.Check == CheckIds.OoxmlCustomAigc && c.Outcome == CheckOutcome.Skip);
+        }
+
+        /// <summary>把唯一条目名 from 替换为 to（等长替换，不破坏任何偏移）。</summary>
+        private static byte[] RenameOnlyEntry(byte[] zip, string from, string to)
+        {
+            var fromBytes = System.Text.Encoding.ASCII.GetBytes(from);
+            var toBytes = System.Text.Encoding.ASCII.GetBytes(to);
+            Assert.Equal(fromBytes.Length, toBytes.Length);
+            byte[] renamed = (byte[])zip.Clone();
+            int hits = 0;
+            for (int i = 0; i + fromBytes.Length <= renamed.Length; i++)
+            {
+                bool match = true;
+                for (int k = 0; k < fromBytes.Length; k++)
+                {
+                    if (renamed[i + k] != fromBytes[k]) { match = false; break; }
+                }
+                if (match)
+                {
+                    toBytes.CopyTo(renamed, i);
+                    hits++;
+                }
+            }
+            Assert.Equal(2, hits); // 本地头 + 中央目录各一处
+            return renamed;
+        }
+
+        [Fact]
         public void Pdf_InfoDict_Compliant()
         {
             var result = AigcLabelVerifier.Verify(PdfBuilder.Build(ValidJson));
@@ -135,6 +188,31 @@ namespace AigcTotal.GB45438.Tests
             var result = AigcLabelVerifier.Verify(pdf);
 
             Assert.Equal(VerdictKind.NotFound, result.Verdict);
+        }
+
+        [Fact]
+        public void Pdf_LargeFile_LabelInTailRegion_Found()
+        {
+            // 头/尾窗口扫描：Info 字典按惯例邻近 trailer——超过读取预算的大文件，尾部 /AIGC 仍可发现
+            var sb = new System.Text.StringBuilder();
+            sb.Append("%PDF-1.7\n");
+            while (sb.Length < 100 * 1024)
+            {
+                sb.Append(new string('x', 100)).Append('\n'); // 不可达的填充对象区
+            }
+            sb.Append("/AIGC ({\"Label\":\"1\",\"ContentProducer\":\"TailStudio\",\"ProduceID\":\"T-1\"})\n");
+            sb.Append("trailer<</Root 1 0 R>>\n%%EOF");
+            byte[] pdf = Encoding.ASCII.GetBytes(sb.ToString());
+            Assert.True(pdf.Length > 64 * 1024);
+
+            var result = AigcLabelVerifier.Verify(pdf, new VerifyOptions
+            {
+                Security = { MaxTotalRead = 8 * 1024 }, // 预算远小于文件
+            });
+
+            Assert.Equal(VerdictKind.Compliant, result.Verdict);
+            Assert.Equal("TailStudio", result.Sites[0].Fields!["ContentProducer"]);
+            Assert.True(result.Sites[0].Location.Offset > 64 * 1024); // 站点确在尾窗口
         }
 
         [Fact]
@@ -175,7 +253,7 @@ namespace AigcTotal.GB45438.Tests
             var result = AigcLabelVerifier.Verify(m4a);
 
             Assert.Equal(Carriers.CarrierKind.Mp4, result.Carrier);
-            Assert.Equal("M4A ", result.CarrierDetail);
+            Assert.Equal("M4A", result.CarrierDetail); // 尾部填充空格由解析器剥除
             Assert.Equal(VerdictKind.Compliant, result.Verdict);
         }
     }
