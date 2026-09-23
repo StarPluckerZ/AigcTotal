@@ -20,7 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\samples\corpus\png-label-valid.png" Link="corpus\png-label-valid.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 全量语料进测试输出：golden 测试按语料名逐一重建并逐字节比对 -->
+    <Content Include="..\..\samples\corpus\**\*.*" Link="corpus\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Golden\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
