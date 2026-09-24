@@ -13,6 +13,12 @@
   <ItemGroup>
     <PackageReference Include="SharpFuzz" />
     <ProjectReference Include="..\..\src\AigcTotal.GB45438\AigcTotal.GB45438.csproj" />
+    <ProjectReference Include="..\..\src\AigcTotal.Log\AigcTotal.Log.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 各 fuzz 目标的种子语料（libFuzzer 起点；docs/fuzzing.md 的 seeds/<target> 路径由此拷贝） -->
+    <Content Include="seeds\**\*.*" CopyToOutputDirectory="PreserveNewest" Link="seeds\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

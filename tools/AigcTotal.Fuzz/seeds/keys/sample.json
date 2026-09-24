@@ -1,0 +1,19 @@
+{
+  "keys": [
+    {
+      "alg": "ES256",
+      "created": "2020-01-01T00:00:00Z",
+      "kid": "k22b48b1b6da162876f84da00fb4e4d4ecf1debc9cb3bbbdc71d103d572e6a2c7",
+      "pubkey_jwk": {
+        "crv": "P-256",
+        "kty": "EC",
+        "x": "YnkWGzRHOr4JRE0cJjUApxrCqC_52aGi5xpC24rkfeM",
+        "y": "ZYMocI8kQmkoGkLebO81M8EOOKbcaW2koBslI0EHqT4"
+      },
+      "retired": null,
+      "revoked": null,
+      "revoked_reason": null,
+      "status": "active"
+    }
+  ]
+}
