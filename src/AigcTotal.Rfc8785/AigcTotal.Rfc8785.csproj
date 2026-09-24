@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- RFC 8785 JCS 完整实现：多目标，双目标均零第三方依赖 -->
+    <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
+    <RootNamespace>AigcTotal.Rfc8785</RootNamespace>
+    <AssemblyName>AigcTotal.Rfc8785</AssemblyName>
+    <Version>0.1.0</Version>
+    <Description>RFC 8785 JSON Canonicalization Scheme (JCS): strict I-JSON parsing, ECMAScript primitive serialization (exact ES6 number algorithm), UTF-16 property sorting, UTF-8 output.</Description>
+    <!-- XML 文档在首个 NuGet 发布前开启 -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- ThrowIfNull 等 BCL 替代 API 在 netstandard2.0 不存在，保留显式抛出 -->
+    <NoWarn>$(NoWarn);CA1510;CA1512</NoWarn>
+  </PropertyGroup>
+
+</Project>

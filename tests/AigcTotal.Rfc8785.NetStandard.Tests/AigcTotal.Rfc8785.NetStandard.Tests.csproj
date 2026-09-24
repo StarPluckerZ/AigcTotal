@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.0 行为冒烟：运行器为 net10.0，但被测库经 SetTargetFramework 钉死为
+         netstandard2.0 编译产物（BigInteger 精确数字算法、无 Span 依赖等），跑在本机 .NET 10 上。
+         免装 .NET Framework 开发包；同样可在 Linux SDK 容器中运行。 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1707;NU1202</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AigcTotal.Rfc8785\AigcTotal.Rfc8785.csproj" SetTargetFramework="TargetFramework=netstandard2.0" />
+  </ItemGroup>
+
+</Project>
