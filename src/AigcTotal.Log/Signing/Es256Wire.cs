@@ -109,17 +109,41 @@ namespace AigcTotal.Log.Signing
             return Convert.ToBase64String(data.ToArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         }
 
+        /// <summary>
+        /// 严格 base64url 解码（形态封闭）：仅接受 RFC 4648 §5 无填充字母表（A-Z a-z 0-9 - _），
+        /// 长度 ≡ 1 (mod 4) 非法；标准 base64 字符（+ /）与 '=' 填充一律 FormatException——
+        /// 同一签名只允许一种线形态（2026-09-24 §2-#9 收紧）。
+        /// </summary>
         public static byte[] Base64UrlDecode(string text)
         {
             if (text == null) throw new ArgumentNullException(nameof(text));
-            string padded = text.Replace('-', '+').Replace('_', '/');
-            switch (padded.Length % 4)
+            if (text.Length == 0) throw new FormatException("empty base64url input");
+            if (text.Length % 4 == 1) throw new FormatException("invalid base64url length");
+
+            var canonical = new char[text.Length + Padding(text.Length)];
+            int o = 0;
+            foreach (char c in text)
             {
-                case 2: padded += "=="; break;
-                case 3: padded += "="; break;
+                char mapped;
+                if (c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9') mapped = c;
+                else if (c == '-') mapped = '+';
+                else if (c == '_') mapped = '/';
+                else throw new FormatException($"invalid base64url character '{c}' (U+{(int)c:X4})");
+                canonical[o++] = mapped;
             }
-            return Convert.FromBase64String(padded);
+            while (o < canonical.Length) canonical[o++] = '=';
+
+            try
+            {
+                return Convert.FromBase64CharArray(canonical, 0, canonical.Length);
+            }
+            catch (FormatException ex)
+            {
+                throw new FormatException("invalid base64url input: " + ex.Message, ex);
+            }
         }
+
+        private static int Padding(int length) => (4 - length % 4) % 4;
 
         /// <summary>大端整数规范化：仅剥前导零（尾零是低位有效字节，绝不可剥），高位为 1 时补 0x00 防负数。</summary>
         private static byte[] TrimLeadingZeros(ReadOnlySpan<byte> component)

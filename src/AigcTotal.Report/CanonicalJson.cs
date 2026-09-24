@@ -10,9 +10,13 @@ namespace AigcTotal.Report
     /// 键按序数（UTF-16 码元）排序、无空白、最短字符串转义。
     /// 值域仅允许：null / bool / long / int / string / List&lt;object?&gt; / Dictionary&lt;string, object?&gt;——
     /// 信封 schema 禁浮点，序列化器对浮点直接抛异常（防御）。
+    /// 整数域 ±(2⁵³−1)（安全整数）：超域 long 会输出纯数字，而严格 JCS 实现（ES6 Number）
+    /// 会输出科学计数法 → 跨实现哈希失配，故在序列化/反序列化两端强制拦截（schema §2 的护栏）。
     /// </summary>
     public static class CanonicalJson
     {
+        /// <summary>I-JSON / ES6 安全整数边界 ±(2⁵³−1)。</summary>
+        public const long MaxSafeInteger = (1L << 53) - 1;
         public static string Serialize(Dictionary<string, object?> document)
         {
             var sb = new StringBuilder(256);
@@ -42,6 +46,11 @@ namespace AigcTotal.Report
             }
             if (value is long l)
             {
+                if (l > MaxSafeInteger || l < -MaxSafeInteger)
+                {
+                    throw new ArgumentException(
+                        $"integer {l} exceeds the ±(2^53-1) safe range; strict JCS implementations would serialize it in scientific notation, breaking cross-implementation hashing");
+                }
                 sb.Append(l.ToString(CultureInfo.InvariantCulture));
                 return;
             }
@@ -275,6 +284,10 @@ namespace AigcTotal.Report
                 if (!ok)
                 {
                     throw new FormatException("integer out of range");
+                }
+                if (value > MaxSafeInteger || value < -MaxSafeInteger)
+                {
+                    throw new FormatException("integer exceeds the ±(2^53-1) safe range");
                 }
                 return value;
             }

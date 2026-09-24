@@ -9,6 +9,8 @@
   <ItemGroup>
     <!-- netstandard2.0 目标上 Span<T> 的运行时支撑；net10.0 目标零依赖 -->
     <PackageVersion Include="System.Memory" Version="4.6.0" />
+    <!-- AigcTotal.Log netstandard2.0 目标的验签后端（仅验证侧，决策 6.7） -->
+    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.4.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="SharpFuzz" Version="2.1.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />

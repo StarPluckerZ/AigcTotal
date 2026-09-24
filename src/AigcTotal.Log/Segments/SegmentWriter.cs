@@ -49,6 +49,10 @@ namespace AigcTotal.Log.Segments
             {
                 throw new ArgumentException($"sequence must be strictly increasing (last={LastSequence})", nameof(entry));
             }
+            if (!TokenFormat.IsValidSha256Claim(entry.InputSha256))
+            {
+                throw new ArgumentException("input_sha256 must be 'sha256:' + 64 lowercase hex", nameof(entry));
+            }
             if (!TokenFormat.IsValidSha256Claim(entry.ReportSha256))
             {
                 throw new ArgumentException("report_sha256 must be 'sha256:' + 64 lowercase hex", nameof(entry));

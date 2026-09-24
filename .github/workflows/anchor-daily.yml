@@ -1,0 +1,58 @@
+name: anchor-daily
+
+# 每日透明日志锚定（W4 第一实现）：
+# 将公开物目录（segments/ + checkpoints/ + well-known/keys.json）打成确定性 tarball + manifest，
+# 创建日期 tag 的 GitHub Release——外部见证 checkpoint 字节于当日。
+# 归档构建逻辑在库内（AigcTotal.Log/Anchoring：LocalAnchorProvider.Publish），CI 只做薄壳上传。
+
+on:
+  schedule:
+    - cron: '17 16 * * *'   # 每日 UTC 16:17（避开整点拥堵）
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'anchor date (yyyy-MM-dd, defaults to today UTC)'
+        required: false
+        type: string
+
+permissions:
+  contents: write   # 创建 tag 与 Release 所需
+
+jobs:
+  anchor:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve date
+        id: date
+        run: |
+          DATE="${{ inputs.date }}"
+          if [ -z "$DATE" ]; then DATE=$(date -u +%F); fi
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Build anchor tarball
+        run: |
+          dotnet run --project tools/AigcTotal.LogHost -c Release -- \
+            anchor --dir publish/public --date "${{ steps.date.outputs.date }}" --out publish/anchors
+          sha256sum publish/anchors/${{ steps.date.outputs.date }}.tar
+
+      - name: Create date-tagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DATE: ${{ steps.date.outputs.date }}
+        run: |
+          TAG="anchor-$DATE"
+          gh release create "$TAG" "publish/anchors/$DATE.tar" \
+            --title "Transparency log anchor $DATE" \
+            --notes "Daily external anchor: deterministic tarball (mtime=0, sorted paths) of
+          segments/, checkpoints/ and well-known/keys.json with an embedded per-file SHA-256
+          manifest. Verifiers: download, then pass to aigc-verify --anchor.
+          See docs/transparency-log.md §8 and MIRROR.md." \
+            --latest=false

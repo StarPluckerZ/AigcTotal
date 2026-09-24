@@ -21,6 +21,7 @@ pdf-info-aigc.pdf  sha256:0d5599f15ab0b03e510355adfc64a109b8ecd239b4c8d25c06eb7e
 md-front-matter.md  sha256:4c5acc109e9a6eff179a73440b95b53958967fca0ebb7b3e17e8c622e97a9c9b  99 bytes
 png-text-wrapped.png  sha256:67a346abad0ec62e2a9d71984061495433d00212fe7dc930f8394ba15832c738  190 bytes
 png-ztxt-aigc.png  sha256:de8e99c740aa2b4594f04e429266898dd2d88d6dec29ef2cd6b01afa1c68cc79  193 bytes
+png-ztxt-truncated-tail.png  sha256:2b13de94f33a1558a2bee2b2929e5f8c5c7824e9887ce37cee161fba1009147f  39 bytes
 jpeg-exif-usercomment.jpg  sha256:b3303ad69ae82ae635cc5a6871719ab1481842772be0bb1cc0482a44e40be490  203 bytes
 mp4-uuid-xmp.mp4  sha256:43667df67dade7539da6790ad7950c974536156a4643df97841c4a384ebd0a83  261 bytes
 wav-aigc.wav  sha256:7eb85627880ca2a586a2496d8afe715f29a1393db9ebf1d0df40d8321530396c  188 bytes

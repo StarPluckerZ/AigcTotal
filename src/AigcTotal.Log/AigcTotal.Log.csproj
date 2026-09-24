@@ -1,19 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- 透明日志与存证签名库：Merkle/段文件/checkpoint/keys 状态机/ES256 线格式。
-         多目标零第三方依赖；仅依赖 AigcTotal.Report（canonical JSON 单一来源），与 GB45438 互不引用。 -->
+    <!-- 透明日志与存证签名库：Merkle/段文件/checkpoint/keys 状态机/ES256 线格式与验签、
+         SignedReport/proof.json/锚定归档。net10.0 零第三方依赖；ns2.0 仅验签侧引 BouncyCastle（决策 6.7）。
+         依赖 AigcTotal.Report（canonical JSON 单一来源），与 GB45438 互不引用。 -->
     <TargetFrameworks>net10.0;netstandard2.0</TargetFrameworks>
     <RootNamespace>AigcTotal.Log</RootNamespace>
     <AssemblyName>AigcTotal.Log</AssemblyName>
     <Version>0.1.0</Version>
-    <Description>Transparency log primitives for AigcTotal attestation reports: RFC 6962 Merkle trees, append-only segments, checkpoint chain, key state machine, ES256 wire format.</Description>
+    <Description>Transparency log primitives for AigcTotal attestation reports: RFC 6962 Merkle trees, append-only segments, checkpoint chain, key state machine, ES256 signing/verification, signed reports, inclusion proofs, daily anchor archives.</Description>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CA1510;CA1512</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\AigcTotal.Report\AigcTotal.Report.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <!-- ns2.0 无跨平台 BCL ECDSA 验签；仅验证路径依赖（签名路径走 net10 BCL/KMS） -->
+    <PackageReference Include="BouncyCastle.Cryptography" />
   </ItemGroup>
 
 </Project>

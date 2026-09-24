@@ -216,6 +216,13 @@ namespace AigcTotal.Fixtures
                 PngBuilder.Ztxt("AIGC", validJson),
                 PngBuilder.Data("IEND", Array.Empty<byte>())));
 
+            // 2026-09-24 P1 回归：zTXt 关键字命中但 zlib 流仅剩 1 字节（负载 = AIGC\0 + method + 0x78）——
+            // 旧守卫 separator+3 放行 → MemoryStream(count=-1) 抛 ArgumentOutOfRangeException 逃出 Verify；
+            // 修复后守卫 separator+4 → structure_malformed → 无法判定
+            yield return ("png-ztxt-truncated-tail.png", PngBuilder.Build(
+                PngBuilder.Data("zTXt", new byte[] { 0x41, 0x49, 0x47, 0x43, 0x00, 0x00, 0x78 }),
+                PngBuilder.Data("IEND", Array.Empty<byte>())));
+
             // JPEG EXIF UserComment 通道（TC260-PG-20259A 附录 B 包裹形态）
             yield return ("jpeg-exif-usercomment.jpg", JpegBuilder.WithExifUserComment(
                 "{\"AIGC\":" + validJson + "}"));

@@ -603,6 +603,28 @@ namespace AigcTotal.GB45438.Tests
             }
         }
 
+        // —— PNG zTXt 尾部截断（2026-09-24 P1）——
+
+        [Theory]
+        [InlineData(1)] // 总长 separator+3：旧实现 MemoryStream(count=-1) 越界异常逃出 Verify（崩溃 PoC）→ 新守卫 structure_malformed
+        [InlineData(2)] // zlib 头恰好占满：空 deflate 流 → 解压空负载 → metadata_shell_empty
+        [InlineData(3)] // zlib 头 + 1 字节残缺 deflate → 解压空负载 → metadata_shell_empty
+        public void Png_ZtxtTruncatedTail_NeverEscape_Inconclusive(int streamBytes)
+        {
+            // zTXt 负载 = "AIGC\0" + method(0) + 残余 zlib 流字节（1/2/3 字节，全部不足 zlib 头+流体）
+            var ztx = new List<byte> { (byte)'A', (byte)'I', (byte)'G', (byte)'C', 0x00, 0x00 };
+            ztx.AddRange(Enumerable.Repeat((byte)0x78, streamBytes));
+            byte[] png = PngBuilder.Build(
+                PngBuilder.Data("zTXt", ztx.ToArray()),
+                PngBuilder.Data("IEND", Array.Empty<byte>()));
+
+            var result = AigcLabelVerifier.Verify(png);
+
+            Assert.Equal(VerdictKind.Inconclusive, result.Verdict);
+            Assert.Contains(result.Signals, s =>
+                s.Kind == SignalKind.StructureMalformed || s.Kind == SignalKind.MetadataShellEmpty);
+        }
+
         /// <summary>嵌套容器 box 深度炸弹：depth 层 moov 套 aigc。</summary>
         private static byte[] Mp4DepthBomb(int depth)
         {

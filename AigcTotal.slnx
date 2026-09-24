@@ -1,19 +1,26 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AigcTotal.GB45438/AigcTotal.GB45438.csproj" />
+    <Project Path="src/AigcTotal.Rfc8785/AigcTotal.Rfc8785.csproj" />
     <Project Path="src/AigcTotal.Report.Cli/AigcTotal.Report.Cli.csproj" />
+    <Project Path="src/AigcTotal.Verify.Cli/AigcTotal.Verify.Cli.csproj" />
     <Project Path="src/AigcTotal.Report/AigcTotal.Report.csproj" />
     <Project Path="src/AigcTotal.Log/AigcTotal.Log.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AigcTotal.GB45438.Tests/AigcTotal.GB45438.Tests.csproj" />
     <Project Path="tests/AigcTotal.GB45438.NetStandard.Tests/AigcTotal.GB45438.NetStandard.Tests.csproj" />
+    <Project Path="tests/AigcTotal.Rfc8785.Tests/AigcTotal.Rfc8785.Tests.csproj" />
+    <Project Path="tests/AigcTotal.Rfc8785.NetStandard.Tests/AigcTotal.Rfc8785.NetStandard.Tests.csproj" />
     <Project Path="tests/AigcTotal.Report.Tests/AigcTotal.Report.Tests.csproj" />
+    <Project Path="tests/AigcTotal.Verify.Tests/AigcTotal.Verify.Tests.csproj" />
     <Project Path="tests/AigcTotal.Log.Tests/AigcTotal.Log.Tests.csproj" />
     <Project Path="tests/AigcTotal.TestSupport/AigcTotal.TestSupport.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/AigcTotal.Fixtures/AigcTotal.Fixtures.csproj" />
+    <Project Path="tools/AigcTotal.LogHost/AigcTotal.LogHost.csproj" />
     <Project Path="tools/AigcTotal.Fuzz/AigcTotal.Fuzz.csproj" />
+    <Project Path="tools/AigcTotal.Rfc8785.Conformance/AigcTotal.Rfc8785.Conformance.csproj" />
   </Folder>
 </Solution>

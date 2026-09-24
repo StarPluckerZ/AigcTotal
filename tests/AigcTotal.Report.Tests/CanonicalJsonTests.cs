@@ -60,6 +60,38 @@ namespace AigcTotal.Report.Tests
             Assert.Throws<ArgumentException>(() => CanonicalJson.Serialize(doc));
         }
 
+        // —— ±(2^53-1) 安全整数护栏（2026-09-24 §2-#4）：超出即拒绝——
+        // 严格 JCS（ES6 Number）会把 2^53+1 序列化为科学计数法，跨实现哈希失配
+
+        [Fact]
+        public void SafeIntegerBounds_Accepted()
+        {
+            var docMax = new Dictionary<string, object?> { ["n"] = CanonicalJson.MaxSafeInteger };
+            var docMin = new Dictionary<string, object?> { ["n"] = -CanonicalJson.MaxSafeInteger };
+            Assert.Equal("{\"n\":9007199254740991}", CanonicalJson.Serialize(docMax));
+            Assert.Equal("{\"n\":-9007199254740991}", CanonicalJson.Serialize(docMin));
+        }
+
+        [Theory]
+        [InlineData(9007199254740992L)]   //  2^53
+        [InlineData(-9007199254740992L)]  // -2^53
+        [InlineData(long.MaxValue)]
+        [InlineData(long.MinValue)]
+        public void UnsafeIntegers_Rejected_Serialize(long value)
+        {
+            var doc = new Dictionary<string, object?> { ["n"] = value };
+            Assert.Throws<ArgumentException>(() => CanonicalJson.Serialize(doc));
+        }
+
+        [Theory]
+        [InlineData("{\"n\":9007199254740992}")]   //  2^53
+        [InlineData("{\"n\":-9007199254740992}")]  // -2^53
+        [InlineData("{\"n\":9223372036854775807}")]
+        public void UnsafeIntegers_Rejected_Deserialize(string json)
+        {
+            Assert.Throws<FormatException>(() => CanonicalJson.Deserialize(json));
+        }
+
         [Fact]
         public void Pretty_KeepsOrder_AddsWhitespace()
         {

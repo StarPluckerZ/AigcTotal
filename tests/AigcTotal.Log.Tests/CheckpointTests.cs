@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 using AigcTotal.Log.Checkpoints;
+using AigcTotal.Log.Keys;
 using AigcTotal.Log.Segments;
 using AigcTotal.Log.Signing;
 using Xunit;
@@ -101,21 +102,28 @@ namespace AigcTotal.Log.Tests
         {
             var entries = new List<LogEntry>
             {
-                new LogEntry(1, Ts, "sha256:" + new string('a', 64)),
-                new LogEntry(2, Ts.AddMinutes(1), "sha256:" + new string('b', 64)),
+                new LogEntry(1, Ts, "sha256:" + new string('c', 64), "sha256:" + new string('a', 64)),
+                new LogEntry(2, Ts.AddMinutes(1), "sha256:" + new string('d', 64), "sha256:" + new string('b', 64)),
             };
             byte[] root = CheckpointBuilder.RootHashFromEntries(entries);
 
-            // 篡改任一字节（时间戳/序号/哈希）→ 根变化——树对整行提交，而非仅 report_sha256
+            // 篡改任一字节（时间戳/序号/任一哈希）→ 根变化——树对整行提交，而非仅 report_sha256
             var tamperedTs = new List<LogEntry>
             {
                 entries[0],
-                new LogEntry(2, Ts.AddMinutes(2), entries[1].ReportSha256),
+                new LogEntry(2, Ts.AddMinutes(2), entries[1].InputSha256, entries[1].ReportSha256),
             };
             Assert.NotEqual(root, CheckpointBuilder.RootHashFromEntries(tamperedTs));
 
-            var tamperedSeq = new List<LogEntry> { entries[0], new LogEntry(9, entries[1].TimestampUtc, entries[1].ReportSha256) };
+            var tamperedSeq = new List<LogEntry> { entries[0], new LogEntry(9, entries[1].TimestampUtc, entries[1].InputSha256, entries[1].ReportSha256) };
             Assert.NotEqual(root, CheckpointBuilder.RootHashFromEntries(tamperedSeq));
+
+            var tamperedInput = new List<LogEntry>
+            {
+                entries[0],
+                new LogEntry(2, entries[1].TimestampUtc, "sha256:" + new string('e', 64), entries[1].ReportSha256),
+            };
+            Assert.NotEqual(root, CheckpointBuilder.RootHashFromEntries(tamperedInput));
 
             // 确定性
             Assert.Equal(root, CheckpointBuilder.RootHashFromEntries(entries));
@@ -127,7 +135,7 @@ namespace AigcTotal.Log.Tests
             // 真 BCL ECDsa 签名端到端：sign(input) → checkpoint → parse → verify（net10 运行时可用）
             var entries = new List<LogEntry>
             {
-                new LogEntry(1, Ts, "sha256:" + new string('a', 64)),
+                new LogEntry(1, Ts, "sha256:" + new string('c', 64), "sha256:" + new string('a', 64)),
             };
             using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
             var signer = new BclP256Signer(key);
@@ -151,5 +159,110 @@ namespace AigcTotal.Log.Tests
 
         private static byte[] sha256(byte[] data) => System.Security.Cryptography.SHA256.HashData(data);
         private static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
+
+        // —— CheckpointVerifier（W3-③）：签名域验签 + 密钥状态机 ——
+
+        private static (KeyFile Keys, System.Security.Cryptography.ECDsa Key) NewKey()
+        {
+            var key = System.Security.Cryptography.ECDsa.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+            byte[] spki = key.ExportSubjectPublicKeyInfo();
+            string kid = Es256Wire.KidFromSpki(spki);
+            byte[] point = spki.AsSpan(26).ToArray();
+            var record = new AigcTotal.Log.Keys.KeyRecord(kid, "ES256",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["kty"] = "EC",
+                    ["crv"] = "P-256",
+                    ["x"] = Es256Wire.Base64UrlEncode(point.AsSpan(1, 32)),
+                    ["y"] = Es256Wire.Base64UrlEncode(point.AsSpan(33, 32)),
+                },
+                AigcTotal.Log.Keys.KeyStatus.Active,
+                new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero), null, null, null);
+            return (AigcTotal.Log.Keys.KeyFile.Of(record), key);
+        }
+
+        private static Checkpoint SignedCheckpoint(System.Security.Cryptography.ECDsa key, string? prev = null)
+        {
+            string kid = Es256Wire.KidFromSpki(key.ExportSubjectPublicKeyInfo());
+            return CheckpointBuilder.BuildCheckpoint(
+                new[] { new LogEntry(1, Ts, "sha256:" + new string('c', 64), "sha256:" + new string('a', 64)) },
+                treeSize: 1, timestampUtc: Ts, kid: kid, prevCheckpointHash: prev, signer: new BclP256Signer(key));
+        }
+
+        [Fact]
+        public void Verifier_Accepts_ValidCheckpoint()
+        {
+            var (keys, key) = NewKey();
+            var verify = CheckpointVerifier.Verify(SignedCheckpoint(key), keys);
+            Assert.True(verify.Valid);
+            Assert.Null(verify.Error);
+        }
+
+        [Fact]
+        public void Verifier_Rejects_TamperedRootAndForeignKid()
+        {
+            var (keys, key) = NewKey();
+            Checkpoint cp = SignedCheckpoint(key);
+
+            // 篡改根哈希 → 签名不再覆盖 SigningInput
+            string root = cp.Sha256RootHash;
+            var badRoot = cp with { Sha256RootHash = string.Concat("sha256:0", root.AsSpan(8)) };
+            Assert.False(CheckpointVerifier.Verify(badRoot, keys).Valid);
+
+            // keys.json 不含该 kid
+            var (otherKeys, otherKey) = NewKey();
+            var notFound = CheckpointVerifier.Verify(cp, otherKeys);
+            Assert.False(notFound.Valid);
+            Assert.Contains("not found", notFound.Error, StringComparison.Ordinal);
+
+            // kid 对得上但公钥是另一把（验签失败路径；KeyFile.Of 不做绑定校验，绑定校验在 Parse）
+            var wrongPubkey = AigcTotal.Log.Keys.KeyFile.Of(otherKeys.Keys[0] with { Kid = cp.Kid });
+            var badSig = CheckpointVerifier.Verify(cp, wrongPubkey);
+            Assert.False(badSig.Valid);
+            Assert.Contains("ES256 verification failed", badSig.Error, StringComparison.Ordinal);
+
+            // 未签名 checkpoint
+            Assert.False(CheckpointVerifier.Verify(cp with { TreeHeadSignature = null }, keys).Valid);
+
+            // 另一把钥匙签的 checkpoint 用本 keys.json 验（走 not found）
+            Assert.False(CheckpointVerifier.Verify(SignedCheckpoint(otherKey), keys).Valid);
+        }
+
+        [Fact]
+        public void Verifier_RevokedKey_Semantics()
+        {
+            var (keys, key) = NewKey();
+            Checkpoint cp = SignedCheckpoint(key);
+
+            // checkpoint 时间早于吊销 → 有效 + 警告；晚于 → 拒绝（半开区间）
+            var revokedEarly = AigcTotal.Log.Keys.KeyFile.Of(keys.Keys[0] with
+            {
+                Status = AigcTotal.Log.Keys.KeyStatus.Revoked,
+                Revoked = Ts.AddHours(1),
+            });
+            Checkpoint atTs = cp; // Ts 早于 revoked
+            var early = CheckpointVerifier.Verify(atTs, revokedEarly);
+            Assert.True(early.Valid);
+            Assert.NotNull(early.Warning);
+
+            Checkpoint late = CheckpointBuilder.BuildCheckpoint(
+                new[] { new LogEntry(1, Ts, "sha256:" + new string('c', 64), "sha256:" + new string('a', 64)) },
+                treeSize: 1, timestampUtc: Ts.AddHours(2),
+                kid: cp.Kid, prevCheckpointHash: null, signer: new BclP256Signer(key));
+            Assert.False(CheckpointVerifier.Verify(late, revokedEarly).Valid);
+        }
+
+        [Fact]
+        public void Chain_HeadWithPrev_IsFlagged_Truncated()
+        {
+            // §2-#2：链首带 prev = 截断链——audit 无外部锚时必须失败
+            var c0 = new Checkpoint(10, Ts, RootHash, Kid, "sha256:" + new string('e', 64), "sig0");
+            var errors = CheckpointChain.Validate(new[] { c0 });
+            Assert.Single(errors);
+            Assert.Contains("truncated chain", errors[0], StringComparison.Ordinal);
+
+            var genesis = new Checkpoint(10, Ts, RootHash, Kid, null, "sig0");
+            Assert.Empty(CheckpointChain.Validate(new[] { genesis }));
+        }
     }
 }

@@ -94,5 +94,33 @@ namespace AigcTotal.Log.Tests
             Assert.Equal(p1363, back);
             Assert.True(key.VerifyData(data, back, HashAlgorithmName.SHA256));
         }
+
+        // —— base64url 严格解码（2026-09-24 §2-#9 收紧：形态封闭，同一签名只有一种线形态） ——
+
+        [Fact]
+        public void Base64Url_Roundtrip()
+        {
+            byte[] data = new byte[] { 0, 1, 2, 250, 251, 252, 253 };
+            string encoded = Es256Wire.Base64UrlEncode(data);
+            Assert.DoesNotContain('+', encoded);
+            Assert.DoesNotContain('/', encoded);
+            Assert.DoesNotContain('=', encoded);
+            Assert.Equal(data, Es256Wire.Base64UrlDecode(encoded));
+        }
+
+        [Theory]
+        [InlineData("AB+D")]    // 标准 base64 字符 '+'（应为 '-'）
+        [InlineData("AB/D")]    // 标准 base64 字符 '/'
+        [InlineData("ABCD=")]   // '=' 填充
+        [InlineData("AB==")]    // '=' 填充
+        [InlineData("AB D")]    // 空白
+        [InlineData("ABCD\n")]  // 换行
+        [InlineData("A")]       // 长度 ≡ 1 (mod 4)
+        [InlineData("ABCDE")]   // 长度 ≡ 1 (mod 4)
+        [InlineData("")]
+        public void Base64Url_StrictDecode_Rejects(string bad)
+        {
+            Assert.Throws<FormatException>(() => Es256Wire.Base64UrlDecode(bad));
+        }
     }
 }

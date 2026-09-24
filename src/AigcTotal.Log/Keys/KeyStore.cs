@@ -33,6 +33,9 @@ namespace AigcTotal.Log.Keys
             Keys = keys;
         }
 
+        /// <summary>由记录集合构建（keys 工具/宿主侧使用；载入路径走 Parse）。</summary>
+        public static KeyFile Of(params KeyRecord[] keys) => new KeyFile(keys);
+
         public IReadOnlyList<KeyRecord> Keys { get; }
 
         public KeyRecord? Find(string kid)
@@ -45,7 +48,8 @@ namespace AigcTotal.Log.Keys
         }
     }
 
-    /// <summary>keys.json 解析（开源仓 well-known 快照；git 历史即锚定）。格式与 kid/JWK/状态合法性在载入期全部校验。</summary>
+    /// <summary>keys.json 解析（开源仓 well-known 快照；git 历史即锚定）。格式、kid/JWK/状态合法性与
+    /// kid↔公钥绑定（§2-#3：kid 必须 = "k"+SHA-256(SPKI(JWK))，防 keys.json 生成流程出错）在载入期全部校验。</summary>
     public static class KeyStore
     {
         public static KeyFile Load(string path)
@@ -64,7 +68,7 @@ namespace AigcTotal.Log.Keys
             {
                 throw new FormatException("malformed keys.json: " + ex.Message, ex);
             }
-            if (doc["keys"] is not List<object?> list)
+            if (!doc.TryGetValue("keys", out object? keysObj) || keysObj is not List<object?> list)
             {
                 throw new FormatException("keys.json must contain a 'keys' array");
             }
@@ -130,7 +134,96 @@ namespace AigcTotal.Log.Keys
                 jwkStrings[pair.Key] = pair.Value as string ?? throw new FormatException("jwk values must be strings");
             }
 
+            // kid ↔ 公钥绑定（纵深防御：keys.json 是信任根，非漏洞；防生成流程错配）
+            string derivedKid;
+            byte[] spki;
+            try
+            {
+                spki = Signing.Es256Wire.BuildSpkiFromJwk(jwkStrings);
+                derivedKid = Signing.Es256Wire.KidFromSpki(spki);
+            }
+            catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException or FormatException)
+            {
+                throw new FormatException($"kid '{kid}': pubkey_jwk is not a valid P-256 point ({ex.Message})");
+            }
+            if (derivedKid != kid)
+            {
+                throw new FormatException(
+                    $"kid '{kid}' does not match SHA-256(SPKI(pubkey_jwk)) '{derivedKid}' — mis-generated keys.json");
+            }
+
             return new KeyRecord(kid, alg, jwkStrings, status, created, retired, revoked, reason);
+        }
+
+        /// <summary>序列化写出（发布流程用）：与 Parse 对称；pretty 形态便于 git 审阅，字段序固定。</summary>
+        public static string Serialize(KeyFile file)
+        {
+            if (file == null) throw new ArgumentNullException(nameof(file));
+            var keys = new List<object?>();
+            foreach (KeyRecord key in file.Keys)
+            {
+                var jwk = new Dictionary<string, object?>();
+                foreach (var pair in key.PubkeyJwk)
+                {
+                    jwk[pair.Key] = pair.Value;
+                }
+                keys.Add(new Dictionary<string, object?>
+                {
+                    ["kid"] = key.Kid,
+                    ["alg"] = key.Alg,
+                    ["pubkey_jwk"] = jwk,
+                    ["status"] = StatusToken(key.Status),
+                    ["created"] = LogTime.Format(key.Created),
+                    ["retired"] = key.Retired.HasValue ? LogTime.Format(key.Retired.Value) : null,
+                    ["revoked"] = key.Revoked.HasValue ? LogTime.Format(key.Revoked.Value) : null,
+                    ["revoked_reason"] = key.RevokedReason,
+                });
+            }
+            return CanonicalJson.SerializePretty(new Dictionary<string, object?> { ["keys"] = keys });
+        }
+
+#if NET
+        /// <summary>
+        /// 生成新密钥（net10；签发侧能力）：P-256 → SPKI → kid → active 记录 + 私钥 PKCS#8 导出。
+        /// 私钥只进运营侧存储（绝不进公开目录）；keys.json 仅含公钥。
+        /// </summary>
+        public static GeneratedKey Generate(DateTimeOffset createdUtc)
+        {
+            using var key = System.Security.Cryptography.ECDsa.Create(
+                System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+            byte[] spki = key.ExportSubjectPublicKeyInfo();
+            byte[] pkcs8 = key.ExportPkcs8PrivateKey();
+
+            byte[] point = new byte[65];
+            // Q = 0x04 || X || Y：从 SPKI 定长模板的尾部提取（RFC 5480 P-256 布局，26 字节前缀）
+            spki.AsSpan(26).CopyTo(point);
+            string x = Signing.Es256Wire.Base64UrlEncode(point.AsSpan(1, 32));
+            string y = Signing.Es256Wire.Base64UrlEncode(point.AsSpan(33, 32));
+            string kid = Signing.Es256Wire.KidFromSpki(spki);
+
+            var record = new KeyRecord(
+                kid, "ES256",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["kty"] = "EC",
+                    ["crv"] = "P-256",
+                    ["x"] = x,
+                    ["y"] = y,
+                },
+                KeyStatus.Active, createdUtc, Retired: null, Revoked: null, RevokedReason: null);
+            return new GeneratedKey(record, pkcs8);
+        }
+#endif
+
+        internal static string StatusToken(KeyStatus status)
+        {
+            switch (status)
+            {
+                case KeyStatus.Active: return "active";
+                case KeyStatus.VerifyOnly: return "verify_only";
+                case KeyStatus.Revoked: return "revoked";
+                default: throw new ArgumentOutOfRangeException(nameof(status));
+            }
         }
 
         private static DateTimeOffset? ParseOptionalTimestamp(Dictionary<string, object?> doc, string name)
@@ -160,4 +253,9 @@ namespace AigcTotal.Log.Keys
             }
         }
     }
+
+#if NET
+    /// <summary>生成产物：active 公钥记录（进 keys.json）+ PKCS#8 私钥（运营侧保管）。</summary>
+    public sealed record GeneratedKey(KeyRecord Record, byte[] PrivatePkcs8);
+#endif
 }

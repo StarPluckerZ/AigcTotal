@@ -85,15 +85,17 @@ namespace AigcTotal.Log.Segments
                 error = "malformed json (" + ex.Message + ")";
                 return false;
             }
-            if (doc.Count != 3
+            if (doc.Count != 4
                 || !doc.TryGetValue("seq", out object? seqObj)
                 || !doc.TryGetValue("timestamp", out object? tsObj)
+                || !doc.TryGetValue("input_sha256", out object? inputObj)
                 || !doc.TryGetValue("report_sha256", out object? hashObj))
             {
                 error = "unexpected field set";
                 return false;
             }
-            if (seqObj is not long seq || tsObj is not string ts || hashObj is not string hash)
+            if (seqObj is not long seq || tsObj is not string ts
+                || inputObj is not string inputHash || hashObj is not string hash)
             {
                 error = "field type mismatch";
                 return false;
@@ -103,12 +105,17 @@ namespace AigcTotal.Log.Segments
                 error = "bad timestamp";
                 return false;
             }
+            if (!TokenFormat.IsValidSha256Claim(inputHash))
+            {
+                error = "bad input_sha256 format";
+                return false;
+            }
             if (!TokenFormat.IsValidSha256Claim(hash))
             {
                 error = "bad report_sha256 format";
                 return false;
             }
-            entry = new LogEntry(seq, timestamp, hash);
+            entry = new LogEntry(seq, timestamp, inputHash, hash);
             return true;
         }
     }

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AigcTotal.LogHost</RootNamespace>
+    <AssemblyName>aigc-log-host</AssemblyName>
+    <Version>0.1.0</Version>
+    <Description>aigc-log-host — local orchestrator stand-in for the closed-source server: report signing, segment append, checkpoint issuance, daily anchor publication. Development/demo only, no production duties.</Description>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AigcTotal.Log\AigcTotal.Log.csproj" />
+    <ProjectReference Include="..\..\src\AigcTotal.Report\AigcTotal.Report.csproj" />
+  </ItemGroup>
+
+</Project>

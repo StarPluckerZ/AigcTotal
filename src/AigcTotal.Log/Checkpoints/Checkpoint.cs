@@ -53,8 +53,11 @@ namespace AigcTotal.Log.Checkpoints
                     throw new FormatException($"unknown checkpoint field '{key}'");
                 }
             }
-            if (doc["kid"] is not string kid || doc["sha256_root_hash"] is not string root
-                || doc["timestamp"] is not string ts || doc["tree_size"] is not long treeSize)
+            // TryGetValue：字段数正确但键名错（重命名/缺键）时索引器会抛 KeyNotFoundException 逃出契约
+            if (!doc.TryGetValue("kid", out object? kidObj) || kidObj is not string kid
+                || !doc.TryGetValue("sha256_root_hash", out object? rootObj) || rootObj is not string root
+                || !doc.TryGetValue("timestamp", out object? tsObj) || tsObj is not string ts
+                || !doc.TryGetValue("tree_size", out object? sizeObj) || sizeObj is not long treeSize)
             {
                 throw new FormatException("missing or mistyped required field");
             }

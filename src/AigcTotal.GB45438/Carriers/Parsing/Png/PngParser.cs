@@ -162,6 +162,9 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Png
         private static void CollectItxtChunk(byte[] data, long dataOffset, int index,
             List<LabelSite> sites, List<ForensicSignal> signals, ref bool sawXmpSite)
         {
+            // 守卫阈值 +3 与后续使用严格一致：data[kw+1] 只需 +2 ≤ Length；
+            // pos = kw+3 作为 Array.IndexOf 起点（BCL 允许 start == Length，返回 -1）——
+            // 若改为 +2 会让 IndexOf 以 Length+1 抛 ArgumentOutOfRangeException 逃出 Verify（zTXt P1 同型）
             int keywordEnd = Array.IndexOf(data, (byte)0);
             if (keywordEnd < 0 || keywordEnd + 3 > data.Length)
             {
@@ -234,7 +237,9 @@ namespace AigcTotal.GB45438.Carriers.Parsing.Png
             string keyword = System.Text.Encoding.ASCII.GetString(data, 0, separator);
             if (keyword != AigcKeyword) return;
 
-            if (data.Length < separator + 3)
+            // zlib 起点为 separator+4（NUL + method + 2 字节 zlib 头），长度不足即截断——
+            // 2026-09-24 P1：旧守卫 separator+3 允许 1 字节流体进入 MemoryStream(count=-1) 抛越界异常逃出 Verify
+            if (data.Length < separator + 4)
             {
                 signals.Add(new ForensicSignal(SignalKind.StructureMalformed,
                     new SiteLocation(new List<object> { "zTXt", index }, dataOffset, data.Length),
