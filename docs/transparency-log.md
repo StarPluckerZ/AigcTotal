@@ -107,6 +107,8 @@ git 历史即锚定。
 - 发布：每日 CI（`.github/workflows/anchor-daily.yml`）打 tarball、创建日期 tag 的 Release
   （库核心不含 GitHub API 依赖；下载与解包留 CI/手动，验证侧持本地 tarball 用
   `LocalAnchorProvider.ReadArchive` 整验）；
+- 独立复核：`verify-daily.yml` 每日取最新锚归档，**仅凭归档本身**解包跑 `aigc-verify audit`
+  （第三方视角）——发布与复核闭环；密钥泄露响应见 `docs/key-management.md`；
 - 锚定语义：外部见证归档内各 checkpoint 的 canonical 字节于日期 T；验证者沿
   `prev_checkpoint_hash` 回溯，碰到任一被锚 checkpoint 即为信任终点；
   **截断链**（链首带 prev，见 §2-#2）只有对照外部锚才能建立信任——无锚时 `aigc-verify` 拒绝；

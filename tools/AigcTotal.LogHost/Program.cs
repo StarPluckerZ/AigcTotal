@@ -25,6 +25,12 @@ namespace AigcTotal.LogHost
     /// </summary>
     public static class LogHost
     {
+        /// <summary>PBKDF2 迭代次数（PBKDF2-HMAC-SHA256；OWASP 2023 口令存储基线）。</summary>
+        private const int Pbkdf2Iterations = 600_000;
+
+        /// <summary>加密私钥的 PEM 标签（PKCS#8 EncryptedPrivateKeyInfo）。</summary>
+        private const string EncryptedPemLabel = "ENCRYPTED PRIVATE KEY";
+
         public static int Main(string[] args)
         {
             return Run(args, Console.Out, Console.Error);
@@ -67,8 +73,9 @@ namespace AigcTotal.LogHost
 
         private static int RunInit(ReadOnlySpan<string> args, TextWriter stdout, TextWriter stderr)
         {
-            string? dir = null, keyOut = null, created = null;
-            ParseOptions(args, stderr, ("--dir", v => dir = v), ("--key-out", v => keyOut = v), ("--created", v => created = v));
+            string? dir = null, keyOut = null, created = null, passEnv = null;
+            ParseOptions(args, stderr, ("--dir", v => dir = v), ("--key-out", v => keyOut = v),
+                ("--created", v => created = v), ("--pass-env", v => passEnv = v));
             if (dir == null) { stderr.WriteLine("error: init requires --dir <publicDir>"); return 2; }
 
             foreach (string sub in new[] { "segments", "checkpoints", "proofs", "well-known", })
@@ -87,18 +94,20 @@ namespace AigcTotal.LogHost
             File.WriteAllText(Path.Combine(dir, "well-known", "keys.json"),
                 KeyStore.Serialize(KeyFile.Of(generated.Record)) + "\n",
                 new UTF8Encoding(false));
-            WritePem(keyOut!, "PRIVATE KEY", generated.PrivatePkcs8);
+            WritePrivateKey(keyOut!, generated.PrivatePkcs8, passEnv);
 
             stdout.WriteLine($"keys: kid={generated.Record.Kid}");
             stdout.WriteLine($"public: {Path.Combine(dir, "well-known", "keys.json")}");
-            stdout.WriteLine($"private: {keyOut} (operator-side; never publish)");
+            stdout.WriteLine($"private: {keyOut} (operator-side; never publish, "
+                + (passEnv != null ? "passphrase-encrypted)" : "PLAINTEXT — dev only)"));
             return 0;
         }
 
         private static int RunSign(ReadOnlySpan<string> args, TextWriter stdout, TextWriter stderr)
         {
-            string? report = null, keyPath = null, output = null;
-            ParseOptions(args, stderr, ("--report", v => report = v), ("--key", v => keyPath = v), ("--out", v => output = v));
+            string? report = null, keyPath = null, output = null, passEnv = null;
+            ParseOptions(args, stderr, ("--report", v => report = v), ("--key", v => keyPath = v),
+                ("--out", v => output = v), ("--pass-env", v => passEnv = v));
             if (report == null) { stderr.WriteLine("error: sign requires --report <report.json>"); return 2; }
             if (keyPath == null) { stderr.WriteLine("error: sign requires --key <pkcs8.pem>"); return 2; }
             output ??= report + ".signed.json";
@@ -114,7 +123,7 @@ namespace AigcTotal.LogHost
                 return 2;
             }
 
-            using ECDsa key = LoadPrivateKey(keyPath);
+            using ECDsa key = LoadPrivateKey(keyPath!, passEnv);
             string kid = KidOf(key);
             var signed = SignedReportCodec.Sign(envelope, kid, new BclP256Signer(key));
             File.WriteAllText(output!, signed.CanonicalJson + "\n", new UTF8Encoding(false));
@@ -148,8 +157,9 @@ namespace AigcTotal.LogHost
 
         private static int RunCheckpoint(ReadOnlySpan<string> args, TextWriter stdout, TextWriter stderr)
         {
-            string? dir = null, keyPath = null, timestamp = null;
-            ParseOptions(args, stderr, ("--dir", v => dir = v), ("--key", v => keyPath = v), ("--timestamp", v => timestamp = v));
+            string? dir = null, keyPath = null, timestamp = null, passEnv = null;
+            ParseOptions(args, stderr, ("--dir", v => dir = v), ("--key", v => keyPath = v),
+                ("--timestamp", v => timestamp = v), ("--pass-env", v => passEnv = v));
             if (dir == null) { stderr.WriteLine("error: checkpoint requires --dir <publicDir>"); return 2; }
             if (keyPath == null) { stderr.WriteLine("error: checkpoint requires --key <pkcs8.pem>"); return 2; }
 
@@ -165,7 +175,7 @@ namespace AigcTotal.LogHost
                     ? log.Checkpoints[log.Checkpoints.Count - 1].TimestampUtc.AddSeconds(1)
                     : DateTimeOffset.UtcNow);
 
-            using ECDsa key = LoadPrivateKey(keyPath);
+            using ECDsa key = LoadPrivateKey(keyPath!, passEnv);
             string kid = KidOf(key);
             Checkpoint checkpoint = CheckpointBuilder.BuildCheckpoint(
                 log.Entries, treeSize: log.Entries.Count, timestampUtc: ts, kid: kid,
@@ -225,8 +235,9 @@ namespace AigcTotal.LogHost
 
         private static int KeysGenerate(ReadOnlySpan<string> args, TextWriter stdout, TextWriter stderr)
         {
-            string? dir = null, keyOut = null, created = null;
-            ParseOptions(args, stderr, ("--dir", v => dir = v), ("--key-out", v => keyOut = v), ("--created", v => created = v));
+            string? dir = null, keyOut = null, created = null, passEnv = null;
+            ParseOptions(args, stderr, ("--dir", v => dir = v), ("--key-out", v => keyOut = v),
+                ("--created", v => created = v), ("--pass-env", v => passEnv = v));
             if (dir == null) { stderr.WriteLine("error: keys generate requires --dir <publicDir>"); return 2; }
 
             string keysPath = Path.Combine(dir, "well-known", "keys.json");
@@ -242,7 +253,7 @@ namespace AigcTotal.LogHost
             Directory.CreateDirectory(Path.GetDirectoryName(keysPath)!);
             File.WriteAllText(keysPath, KeyStore.Serialize(KeyFile.Of(records.ToArray())) + "\n", new UTF8Encoding(false));
             keyOut ??= Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dir))!, generated.Record.Kid + ".pkcs8.pem");
-            WritePem(keyOut!, "PRIVATE KEY", generated.PrivatePkcs8);
+            WritePrivateKey(keyOut!, generated.PrivatePkcs8, passEnv);
 
             stdout.WriteLine($"generated: kid={generated.Record.Kid} (now {records.Count} key(s) in keys.json)");
             stdout.WriteLine($"public: {keysPath}");
@@ -317,17 +328,86 @@ namespace AigcTotal.LogHost
             throw new FormatException("report envelope has no input.sha256 — cannot log entry");
         }
 
-        private static ECDsa LoadPrivateKey(string keyPath)
+        /// <summary>
+        /// 加载私钥：同时接受明文 PKCS#8（开发）与口令加密 PKCS#8（生产，WritePrivateKey 产物）。
+        /// 加密形态必须给 --pass-env（口令从环境变量读，不落盘、不进命令行参数）。
+        /// </summary>
+        private static ECDsa LoadPrivateKey(string keyPath, string? passEnv)
         {
             string pem = File.ReadAllText(keyPath);
-            string base64 = pem
-                .Replace("-----BEGIN PRIVATE KEY-----", "")
-                .Replace("-----END PRIVATE KEY-----", "")
-                .Replace("\r", "").Replace("\n", "");
             var key = ECDsa.Create();
-            key.ImportPkcs8PrivateKey(Convert.FromBase64String(base64), out _);
+            if (pem.Contains(EncryptedPemLabel, StringComparison.Ordinal))
+            {
+                string? passphrase = ResolvePassphrase(passEnv)
+                    ?? throw new ArgumentException(
+                        "key file is passphrase-encrypted; provide --pass-env <VAR>", keyPath);
+                try
+                {
+                    key.ImportEncryptedPkcs8PrivateKey(
+                        passphrase, Convert.FromBase64String(PemBody(pem, EncryptedPemLabel)), out _);
+                }
+                catch (CryptographicException ex)
+                {
+                    throw new ArgumentException(
+                        "cannot import encrypted key (bad passphrase or corrupt file): " + ex.Message, ex);
+                }
+            }
+            else
+            {
+                key.ImportPkcs8PrivateKey(
+                    Convert.FromBase64String(PemBody(pem, "PRIVATE KEY")), out _);
+            }
             if (key.KeySize != 256) throw new ArgumentException("signing key must be P-256", keyPath);
             return key;
+        }
+
+        private static string PemBody(string pem, string label)
+        {
+            return pem
+                .Replace($"-----BEGIN {label}-----", "")
+                .Replace($"-----END {label}-----", "")
+                .Replace("\r", "").Replace("\n", "");
+        }
+
+        private static string? ResolvePassphrase(string? passEnv)
+        {
+            if (passEnv == null) return null;
+            string? value = Environment.GetEnvironmentVariable(passEnv);
+            if (string.IsNullOrEmpty(value))
+            {
+                throw new ArgumentException(
+                    $"environment variable '{passEnv}' is not set or empty (passphrase source)");
+            }
+            return value;
+        }
+
+        /// <summary>
+        /// 私钥落盘：给口令 → 加密 PKCS#8（PBES2 / AES-256-CBC-PKCS7 / PBKDF2-SHA-256，
+        /// <see cref="Pbkdf2Iterations"/> 次迭代）；不给 → 明文（仅开发，init 输出行显式标注 PLAINTEXT）。
+        /// 两种形态在 Unix 上一律 0600。
+        /// </summary>
+        private static void WritePrivateKey(string path, byte[] pkcs8, string? passEnv)
+        {
+            string? passphrase = ResolvePassphrase(passEnv);
+            if (passphrase != null)
+            {
+                using var key = ECDsa.Create();
+                key.ImportPkcs8PrivateKey(pkcs8, out _);
+                byte[] encrypted = key.ExportEncryptedPkcs8PrivateKey(passphrase,
+                    new PbeParameters(
+                        PbeEncryptionAlgorithm.Aes256Cbc,
+                        HashAlgorithmName.SHA256,
+                        Pbkdf2Iterations));
+                WritePem(path, EncryptedPemLabel, encrypted);
+            }
+            else
+            {
+                WritePem(path, "PRIVATE KEY", pkcs8);
+            }
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
         }
 
         private static string KidOf(ECDsa key)
@@ -362,14 +442,19 @@ namespace AigcTotal.LogHost
             writer.WriteLine("aigc-log-host — local orchestrator stand-in (development/demo, single writer)");
             writer.WriteLine();
             writer.WriteLine("usage:");
-            writer.WriteLine("  aigc-log-host init --dir <publicDir> [--key-out <pkcs8.pem>] [--created <ts>]");
-            writer.WriteLine("  aigc-log-host sign --report <report.json> --key <pkcs8.pem> [--out <signed.json>]");
+            writer.WriteLine("  aigc-log-host init --dir <publicDir> [--key-out <pem>] [--created <ts>] [--pass-env <VAR>]");
+            writer.WriteLine("  aigc-log-host sign --report <report.json> --key <pem> [--out <signed.json>] [--pass-env <VAR>]");
             writer.WriteLine("  aigc-log-host append --dir <publicDir> --report <signed.json> [--timestamp <ts>]");
-            writer.WriteLine("  aigc-log-host checkpoint --dir <publicDir> --key <pkcs8.pem> [--timestamp <ts>]");
+            writer.WriteLine("  aigc-log-host checkpoint --dir <publicDir> --key <pem> [--timestamp <ts>] [--pass-env <VAR>]");
             writer.WriteLine("  aigc-log-host anchor --dir <publicDir> --date <yyyy-MM-dd> [--out <archiveDir>]");
-            writer.WriteLine("  aigc-log-host keys generate --dir <publicDir> [--key-out <pem>] [--created <ts>]");
+            writer.WriteLine("  aigc-log-host keys generate --dir <publicDir> [--key-out <pem>] [--created <ts>] [--pass-env <VAR>]");
             writer.WriteLine("  aigc-log-host keys retire --dir <publicDir> --kid <kid> [--timestamp <ts>]");
             writer.WriteLine("  aigc-log-host keys revoke --dir <publicDir> --kid <kid> [--reason <text>] [--timestamp <ts>]");
+            writer.WriteLine();
+            writer.WriteLine("--pass-env <VAR>: read the key passphrase from environment variable VAR, writing");
+            writer.WriteLine("(init/keys generate) or reading (sign/checkpoint) an ENCRYPTED PRIVATE KEY");
+            writer.WriteLine("(PKCS#8, PBES2 AES-256-CBC, PBKDF2-SHA256 600k). Production keys must be");
+            writer.WriteLine("encrypted — see docs/key-management.md; plain-PEM output is dev-only.");
             writer.WriteLine();
             writer.WriteLine("public dir layout: segments/ checkpoints/ proofs/ well-known/keys.json");
             writer.WriteLine("timestamps: RFC 3339 UTC seconds precision, e.g. 2026-09-24T08:00:00Z");

@@ -1,0 +1,69 @@
+name: verify-daily
+
+# 每日独立复核（与 anchor-daily 配对的"发布 + 复核"闭环）：
+# 从 GitHub Releases 取最新的锚归档，**只用归档本身**（第三方视角：不信任仓内工作区），
+# 解包出 segments/ + checkpoints/ + well-known/ 后跑 aigc-verify audit 全量重建——
+# tar 篡改在 manifest 整验处失败，日志篡改在树根对照处失败，密钥滥用在链/签名校验处失败。
+# 无锚归档发布前（编排器落地前）本作业空转并明确说明，不误报。
+
+on:
+  schedule:
+    - cron: '43 17 * * *'   # anchor-daily（16:17 UTC）之后
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Locate latest anchor release
+        id: anchor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 --json tagName \
+            --jq '[.[].tagName | select(startswith("anchor-"))][0] // ""')"
+          if [ -z "$TAG" ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            echo "no anchor-<date> releases published yet; verify-daily is idle"
+          else
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "verifying $TAG"
+          fi
+
+      - if: steps.anchor.outputs.skip != '1'
+        name: Download and extract published anchor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/anchor /tmp/public
+          gh release download "${{ steps.anchor.outputs.tag }}" -p '*.tar' -D /tmp/anchor
+          tar xf /tmp/anchor/*.tar -C /tmp/public
+          ls /tmp/public
+
+      - if: steps.anchor.outputs.skip != '1'
+        name: Build aigc-verify
+        run: dotnet build src/AigcTotal.Verify.Cli -c Release
+
+      - if: steps.anchor.outputs.skip != '1'
+        name: Audit published artifacts (manifest -> roots -> signatures -> chain)
+        run: |
+          dotnet run --project src/AigcTotal.Verify.Cli -c Release --no-build -- audit \
+            --segments /tmp/public/segments \
+            --checkpoints /tmp/public/checkpoints \
+            --keys /tmp/public/well-known/keys.json \
+            --anchor "$(ls /tmp/anchor/*.tar)"
+
+      - if: steps.anchor.outputs.skip == '1'
+        name: Idle
+        run: echo "nothing to verify yet"

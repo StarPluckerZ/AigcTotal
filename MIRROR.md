@@ -21,6 +21,12 @@
 - 镜像方不应（也无法）重写历史：任何对既有文件的改动都会导致 manifest/树根/链校验失败，
   在 `aigc-verify audit` 下立即暴露。
 
+## 内建见证
+
+`verify-daily.yml` 即官方自己的每日第三方视角复核（从 Release 取归档、解包、audit）。
+镜像方照 `docs/transparency-log.md` §8 做同样的事即可——见证方越多，密钥滥用或发布点被篡改
+被发现越快。
+
 ## 建议镜像点（按需开设）
 
 - Git 仓库镜像（含 well-known/ 与历史 manifest）；

@@ -67,8 +67,8 @@ namespace AigcTotal.Verify.Tests
                 flipped.ToString(), text.AsSpan(at + needle.Length + 1)), new UTF8Encoding(false));
         }
 
-        /// <summary>构造一份签名报告（真实核查 corpus 文件 → 信封 → 宿主签名）。</summary>
-        private string IssueSignedReport(string corpusName, string timestamp)
+        /// <summary>构造报告信封文件（真实核查 corpus 文件 → canonical 信封）。</summary>
+        private string WriteRawReport(string corpusName, string timestamp)
         {
             byte[] input = File.ReadAllBytes(Corpus(corpusName));
             string inputHash = "sha256:" + Convert.ToHexString(
@@ -82,6 +82,13 @@ namespace AigcTotal.Verify.Tests
 
             string raw = Path.Combine(_dir, corpusName + ".report.json");
             File.WriteAllText(raw, envelope.CanonicalJson + "\n", new UTF8Encoding(false));
+            return raw;
+        }
+
+        /// <summary>构造一份签名报告（真实核查 corpus 文件 → 信封 → 宿主签名）。</summary>
+        private string IssueSignedReport(string corpusName, string timestamp)
+        {
+            string raw = WriteRawReport(corpusName, timestamp);
             string signed = raw + ".signed.json";
             Assert.Equal(0, Host("sign", "--report", raw, "--key", KeyPath, "--out", signed));
             return signed;
@@ -246,6 +253,56 @@ namespace AigcTotal.Verify.Tests
             // 签发但从未入日志的报告
             string ghost = IssueSignedReport("article-plain.txt", "2026-09-24T13:00:00Z");
             Assert.Equal(1, Verify(VerifyArgs(ghost)));
+        }
+
+        [Fact]
+        public void EncryptedPrivateKey_Roundtrip_And_MissingOrWrongPassphrase_Rejected()
+        {
+            // 生产形态：私钥落盘即密文（PKCS#8 PBES2）；口令只经环境变量，不进盘、不进命令行
+            string publicDir = Path.Combine(_dir, "public-enc");
+            string keyPath = Path.Combine(_dir, "enc-key.pem");
+            const string passVar = "AIGC_E2E_KEY_PASS";
+            Environment.SetEnvironmentVariable(passVar, "correct horse battery staple 2026");
+            try
+            {
+                Assert.Equal(0, Host("init", "--dir", publicDir, "--key-out", keyPath,
+                    "--created", "2020-01-01T00:00:00Z", "--pass-env", passVar));
+
+                string pem = File.ReadAllText(keyPath);
+                Assert.Contains("ENCRYPTED PRIVATE KEY", pem);
+                Assert.DoesNotContain("BEGIN PRIVATE KEY", pem); // 明文钥头不得出现
+
+                // 带口令签名成功
+                string raw = WriteRawReport("png-label-valid.png", "2026-09-24T09:00:00Z");
+                string signed = raw + ".enc.signed.json";
+                Assert.Equal(0, Host("sign", "--report", raw, "--key", keyPath,
+                    "--out", signed, "--pass-env", passVar));
+
+                // 缺口令 → 错误退出（2）
+                Assert.Equal(2, Host("sign", "--report", raw, "--key", keyPath,
+                    "--out", raw + ".x1.json"));
+
+                // 错误口令 → 错误退出（2）
+                Environment.SetEnvironmentVariable(passVar, "wrong passphrase");
+                Assert.Equal(2, Host("sign", "--report", raw, "--key", keyPath,
+                    "--out", raw + ".x2.json", "--pass-env", passVar));
+
+                // 恢复正确口令：签发/入账/建树/验证全链仍通（密文钥 = 签名语义不变）
+                Environment.SetEnvironmentVariable(passVar, "correct horse battery staple 2026");
+                string segment = Path.Combine(publicDir, "segments");
+                Assert.Equal(0, Host("append", "--dir", publicDir, "--report", signed,
+                    "--timestamp", "2026-09-24T09:10:00Z"));
+                Assert.Equal(0, Host("checkpoint", "--dir", publicDir, "--key", keyPath,
+                    "--pass-env", passVar, "--timestamp", "2026-09-24T10:00:00Z"));
+                Assert.Equal(0, Verify("verify", signed,
+                    "--keys", Path.Combine(publicDir, "well-known", "keys.json"),
+                    "--segments", segment,
+                    "--checkpoints", Path.Combine(publicDir, "checkpoints")));
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(passVar, null);
+            }
         }
     }
 }

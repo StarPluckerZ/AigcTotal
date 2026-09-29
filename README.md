@@ -110,6 +110,7 @@ foreach (var site in result.Sites)
 - `docs/checks.md` — check id 注册表（只增不改）
 - `docs/canonicalization.md` — 存证报告 canonical JSON 规范（±2⁵³−1 安全整数护栏）
 - `docs/transparency-log.md` — 透明日志：段/checkpoint/keys/SignedReport/proof/锚定与验证手册
+- `docs/key-management.md` — 签名密钥管理与泄露响应 runbook（软件密钥 + 快速轮换模型）
 - `docs/fuzzing.md` — 模糊测试运行指南
 
 ## 许可证
